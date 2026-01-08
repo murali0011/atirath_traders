@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 
 const Hero = () => {
   const [currentTitleIndex, setCurrentTitleIndex] = useState(0);
@@ -6,12 +6,15 @@ const Hero = () => {
   const [isScrolling, setIsScrolling] = useState(true);
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [showPopup, setShowPopup] = useState(false);
+  const [isVideoLoaded, setIsVideoLoaded] = useState(false);
+  const [videoError, setVideoError] = useState(false);
   const videoRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const animationIdRef = useRef(null);
   const scrollPositionRef = useRef(0);
 
-  const titles = [
+  // Memoize titles to prevent unnecessary re-renders
+  const titles = useMemo(() => [
     {
       title: "Diverse Businesses, One Vision",
       subtitle: "Leading innovation across multiple industries"
@@ -24,10 +27,10 @@ const Hero = () => {
       title: "Global Reach, Local Impact",
       subtitle: "Serving customers across 42 countries"
     }
-  ];
+  ], []);
 
-  // Company data with detailed information
-  const companyData = [
+  // Memoize company data
+  const companyData = useMemo(() => [
     { 
       id: 1,
       name: "Siea - Sai Import and Export Agro", 
@@ -200,12 +203,12 @@ const Hero = () => {
         website: "https://akildrinks.com"
       }
     }
-  ];
+  ], []);
 
   // Initialize with all logos
   useEffect(() => {
     setScrollingLogos([...companyData]);
-  }, []);
+  }, [companyData]);
 
   // Title rotation effect
   useEffect(() => {
@@ -215,13 +218,33 @@ const Hero = () => {
     return () => clearInterval(interval);
   }, [titles.length]);
 
-  // Handle video play
+  // Handle video load and play - optimized
   useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.play().catch(error => {
-        console.log('Video autoplay failed:', error);
-      });
-    }
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handleLoadedData = () => {
+      setIsVideoLoaded(true);
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.log('Video autoplay prevented:', error);
+        });
+      }
+    };
+
+    const handleError = () => {
+      setVideoError(true);
+      console.error('Failed to load video');
+    };
+
+    video.addEventListener('loadeddata', handleLoadedData);
+    video.addEventListener('error', handleError);
+
+    return () => {
+      video.removeEventListener('loadeddata', handleLoadedData);
+      video.removeEventListener('error', handleError);
+    };
   }, []);
 
   // Prevent background scroll when popup is open
@@ -236,19 +259,20 @@ const Hero = () => {
     };
   }, [showPopup]);
 
-  // Infinite RTL scrolling animation for logos
+  // Infinite RTL scrolling animation for logos - optimized
   useEffect(() => {
     if (!scrollContainerRef.current || scrollingLogos.length === 0) return;
 
     const container = scrollContainerRef.current;
-    const scrollSpeed = 1;
-    let lastTimestamp = 0;
+    let animationFrameId;
+    let lastTime = 0;
+    const scrollSpeed = 0.5;
 
-    const scrollLogos = (timestamp) => {
-      if (!lastTimestamp) lastTimestamp = timestamp;
+    const animate = (currentTime) => {
+      if (!lastTime) lastTime = currentTime;
       
       if (isScrolling) {
-        const deltaTime = timestamp - lastTimestamp;
+        const deltaTime = currentTime - lastTime;
         const deltaScroll = (deltaTime * scrollSpeed) / 16;
         
         scrollPositionRef.current += deltaScroll;
@@ -259,72 +283,111 @@ const Hero = () => {
           scrollPositionRef.current = 0;
         }
         
-        container.style.transform = `translateX(-${scrollPositionRef.current}px)`;
+        container.style.transform = `translate3d(-${scrollPositionRef.current}px, 0, 0)`;
       }
       
-      lastTimestamp = timestamp;
-      animationIdRef.current = requestAnimationFrame(scrollLogos);
+      lastTime = currentTime;
+      animationFrameId = requestAnimationFrame(animate);
     };
 
-    animationIdRef.current = requestAnimationFrame(scrollLogos);
+    animationFrameId = requestAnimationFrame(animate);
 
     return () => {
-      if (animationIdRef.current) {
-        cancelAnimationFrame(animationIdRef.current);
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
       }
     };
   }, [isScrolling, scrollingLogos]);
 
-  // Handle logo click
-  const handleLogoClick = (company) => {
+  // Memoized event handlers
+  const handleLogoClick = useCallback((company) => {
     setSelectedCompany(company);
     setShowPopup(true);
     setIsScrolling(false);
-  };
+  }, []);
 
-  // Close popup
-  const closePopup = () => {
+  const closePopup = useCallback(() => {
     setShowPopup(false);
     setSelectedCompany(null);
     setIsScrolling(true);
-  };
+  }, []);
 
-  // Pause scroll on hover
-  const handleMouseEnter = () => {
+  const handleMouseEnter = useCallback(() => {
     setIsScrolling(false);
-  };
+  }, []);
 
-  const handleMouseLeave = () => {
+  const handleMouseLeave = useCallback(() => {
     setIsScrolling(true);
-  };
+  }, []);
 
-  // Refresh logos with all companies
-  const refreshLogos = () => {
+  const refreshLogos = useCallback(() => {
     setScrollingLogos([...companyData]);
-  };
+  }, [companyData]);
 
-  // Shuffle logos randomly
-  const shuffleLogos = () => {
+  const shuffleLogos = useCallback(() => {
     const shuffled = [...companyData].sort(() => 0.5 - Math.random());
     setScrollingLogos(shuffled);
-  };
+  }, [companyData]);
+
+  // Fallback video component
+  const VideoFallback = () => (
+    <div className="video-fallback" style={{
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%',
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: 'white',
+      fontSize: '1.5rem'
+    }}>
+      Loading experience...
+    </div>
+  );
 
   return (
     <section id="home" className="position-relative overflow-hidden" style={{ paddingTop: '80px' }}>
       <div className="slideshow-container">
-        {/* Single Video Background */}
+        {/* Optimized Video Background */}
         <div className="slide active">
-          <video
-            ref={videoRef}
-            autoPlay
-            muted
-            loop
-            playsInline
-            className="slide-video"
-          >
-            <source src="/img/Agriculture_products.mp4" type="video/mp4" />
-            Your browser does not support the video tag.
-          </video>
+          {!videoError ? (
+            <>
+              {/* Low-quality placeholder image first */}
+              {!isVideoLoaded && (
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+                  zIndex: 1
+                }} />
+              )}
+              
+              <video
+                ref={videoRef}
+                autoPlay
+                muted
+                loop
+                playsInline
+                className="slide-video"
+                preload="metadata"
+                style={{
+                  opacity: isVideoLoaded ? 1 : 0,
+                  transition: 'opacity 0.5s ease'
+                }}
+              >
+                <source src="/img/Agriculture_products.mp4" type="video/mp4" />
+                Your browser does not support the video tag.
+              </video>
+            </>
+          ) : (
+            <VideoFallback />
+          )}
           
           <div className="slide-overlay">
             <div className="slide-content">
@@ -472,30 +535,25 @@ const Hero = () => {
               marginLeft: '2rem'
             }}
           >
-            {/* First set of logos */}
+            {/* Logo sets */}
             {scrollingLogos.map((company, index) => (
               <LogoItem 
                 key={`first-${company.id}-${index}`} 
                 company={company} 
-                index={index}
                 onClick={() => handleLogoClick(company)}
               />
             ))}
-            {/* Second set (duplicate for seamless loop) */}
             {scrollingLogos.map((company, index) => (
               <LogoItem 
                 key={`second-${company.id}-${index}`} 
                 company={company} 
-                index={index}
                 onClick={() => handleLogoClick(company)}
               />
             ))}
-            {/* Third set (for extra smoothness) */}
             {scrollingLogos.map((company, index) => (
               <LogoItem 
                 key={`third-${company.id}-${index}`} 
                 company={company} 
-                index={index}
                 onClick={() => handleLogoClick(company)}
               />
             ))}
@@ -511,17 +569,75 @@ const Hero = () => {
       <style jsx>{`
         .slideshow-container {
           height: 100vh;
+          position: relative;
+          overflow: hidden;
+        }
+        
+        .slide-video {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          min-width: 100%;
+          min-height: 100%;
+          width: auto;
+          height: auto;
+          transform: translate(-50%, -50%);
+          object-fit: cover;
+          transform: translate3d(-50%, -50%, 0);
+          backface-visibility: hidden;
+          perspective: 1000;
         }
         
         .scrolling-logos-section {
           transition: opacity 0.3s ease;
+          transform: translate3d(0, 0, 0);
+          backface-visibility: hidden;
         }
         
         .scrolling-logos-section:hover {
           opacity: 0.95;
         }
         
+        .title-container {
+          transform: translate3d(0, 0, 0);
+          backface-visibility: hidden;
+        }
+        
+        .animate-fadeIn {
+          animation: fadeIn 0.8s ease forwards;
+          transform: translate3d(0, 0, 0);
+          will-change: opacity, transform;
+        }
+        
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        @media (prefers-reduced-motion: reduce) {
+          .animate-fadeIn,
+          .scrolling-logos-container,
+          .slide-video {
+            animation: none;
+            transition: none;
+          }
+          
+          .scrolling-logos-container {
+            animation: none !important;
+          }
+        }
+        
         @media (max-width: 768px) {
+          .slideshow-container {
+            height: 70vh;
+          }
+          
           .scrolling-logos-section {
             height: 120px;
             bottom: 10px;
@@ -541,9 +657,17 @@ const Hero = () => {
             font-size: 0.9rem !important;
             padding: 0.3rem 0.9rem !important;
           }
+          
+          .slide-video {
+            transform: translate3d(-50%, -50%, 0) scale(1.1);
+          }
         }
         
         @media (max-width: 480px) {
+          .slideshow-container {
+            height: 60vh;
+          }
+          
           .scrolling-logos-section {
             height: 110px;
             padding: 0 1rem;
@@ -914,8 +1038,14 @@ const CompanyPopup = ({ company, onClose }) => {
   );
 };
 
-// LogoItem Component
-const LogoItem = ({ company, index, onClick }) => {
+// Optimized LogoItem Component with React.memo
+const LogoItem = React.memo(({ company, onClick }) => {
+  const [imgError, setImgError] = useState(false);
+
+  const handleImageError = useCallback(() => {
+    setImgError(true);
+  }, []);
+
   return (
     <div
       className="logo-item"
@@ -933,7 +1063,9 @@ const LogoItem = ({ company, index, onClick }) => {
         border: '1px solid rgba(255, 255, 255, 0.1)',
         padding: '0.5rem',
         margin: '0 0 3rem 0',
-        cursor: 'pointer'
+        cursor: 'pointer',
+        transform: 'translate3d(0, 0, 0)',
+        backfaceVisibility: 'hidden'
       }}
       onClick={onClick}
       onMouseEnter={(e) => {
@@ -947,26 +1079,37 @@ const LogoItem = ({ company, index, onClick }) => {
         e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
       }}
     >
-      <img
-        src={company.logo}
-        alt={`${company.name} logo`}
-        style={{
+      {!imgError ? (
+        <img
+          src={company.logo}
+          alt={`${company.name} logo`}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'contain',
+            borderRadius: '0.25rem',
+            filter: 'brightness(1.1) contrast(1.1)'
+          }}
+          loading="lazy"
+          onError={handleImageError}
+        />
+      ) : (
+        <div style={{
           width: '100%',
           height: '100%',
-          objectFit: 'contain',
-          borderRadius: '0.25rem',
-          filter: 'brightness(1.1) contrast(1.1)'
-        }}
-        onError={(e) => {
-          console.error(`Failed to load logo: ${company.name}`);
-          e.target.style.display = 'none';
-          e.target.parentElement.innerHTML = `
-            <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.7rem; text-align: center; padding: 0.5rem;">
-              ${company.name}
-            </div>
-          `;
-        }}
-      />
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'white',
+          fontSize: '0.7rem',
+          textAlign: 'center',
+          padding: '0.5rem',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+        }}>
+          {company.name}
+        </div>
+      )}
+      
       {/* Company name tooltip */}
       <div 
         className="logo-tooltip"
@@ -991,34 +1134,10 @@ const LogoItem = ({ company, index, onClick }) => {
       >
         Click for details
       </div>
-      <style jsx>{`
-        .logo-item:hover .logo-tooltip {
-          opacity: 1;
-        }
-        
-        @media (max-width: 768px) {
-          .logo-item {
-            width: 100px !important;
-            height: 65px !important;
-          }
-        }
-        
-        @media (max-width: 480px) {
-          .logo-item {
-            width: 80px !important;
-            height: 55px !important;
-            padding: 0.3rem !important;
-          }
-          
-          .logo-tooltip {
-            font-size: 0.6rem !important;
-            padding: 0.15rem 0.3rem !important;
-            bottom: -25px !important;
-          }
-        }
-      `}</style>
     </div>
   );
-};
+});
 
-export default Hero;
+LogoItem.displayName = 'LogoItem';
+
+export default React.memo(Hero);

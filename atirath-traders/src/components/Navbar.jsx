@@ -61,22 +61,31 @@ const Navbar = ({
   const moreDropdownRef = useRef(null);
   const moreButtonRef = useRef(null);
   
-  const [isMobile, setIsMobile] = useState(false);
-  const [isTablet, setIsTablet] = useState(false);
-  const [isDesktop, setIsDesktop] = useState(false);
-  const [isSmallMobile, setIsSmallMobile] = useState(false);
+  // Enhanced responsive states
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
+  const [deviceType, setDeviceType] = useState('desktop');
+  const [isMobileView, setIsMobileView] = useState(false);
 
   useEffect(() => {
     const handleResize = () => {
       const width = window.innerWidth;
+      const height = window.innerHeight;
       setWindowWidth(width);
       
-      // Adjust breakpoints for better mobile support
-      setIsSmallMobile(width < 480); // Fold phones and small mobiles
-      setIsMobile(width >= 480 && width < 768); // Regular mobiles
-      setIsTablet(width >= 768 && width < 1024); // Tablets and iPads
-      setIsDesktop(width >= 1024); // Desktops
+      // Enhanced device detection with better breakpoints
+      // iPad Pro is 1024px, Nest Hub is 1024px, iPad Air is 820px
+      // We'll use 1024px as the cutoff for desktop view
+      
+      if (width < 768) {
+        setDeviceType('mobile');
+        setIsMobileView(true);
+      } else if (width >= 768 && width < 1024) {
+        setDeviceType('tablet');
+        setIsMobileView(true); // Tablets show mobile menu
+      } else {
+        setDeviceType('desktop');
+        setIsMobileView(false); // Desktop view for 1024px and above
+      }
       
       if (width >= 1024) {
         setMobileMenuOpen(false);
@@ -966,8 +975,18 @@ const Navbar = ({
     if (!isAuthenticated || !currentUser) return null;
     const hasValidPhoto = currentUser?.photoURL && currentUser.photoURL.startsWith('data:image');
   
-    const buttonSize = isSmallMobile ? '32px' : (isMobile ? '36px' : '40px');
-    const fontSize = isSmallMobile ? '0.8rem' : (isMobile ? '0.9rem' : '1rem');
+    let buttonSize, fontSize;
+    
+    if (windowWidth < 400) {
+      buttonSize = '32px';
+      fontSize = '0.8rem';
+    } else if (windowWidth < 768) {
+      buttonSize = '36px';
+      fontSize = '0.9rem';
+    } else {
+      buttonSize = '40px';
+      fontSize = '1rem';
+    }
   
     return (
       <button
@@ -1440,7 +1459,7 @@ const Navbar = ({
         className="profile-dropdown-card"
         style={{
           position: 'fixed',
-          top: windowWidth < 480 ? '50px' : (windowWidth < 768 ? '52px' : '60px'),
+          top: windowWidth < 480 ? '50px' : (windowWidth < 768 ? '54px' : '60px'),
           right: windowWidth < 480 ? '2.5%' : '10px',
           width: dropdownWidth,
           maxWidth: dropdownMaxWidth,
@@ -1494,8 +1513,21 @@ const Navbar = ({
   const renderOrdersPopup = () => {
     if (!ordersPopupOpen) return null;
     
-    const popupWidth = isSmallMobile ? '98%' : (isMobile ? '95%' : (isTablet ? '80%' : '60%'));
-    const popupMaxWidth = isSmallMobile ? '350px' : (isMobile ? '400px' : (isTablet ? '600px' : '800px'));
+    let popupWidth, popupMaxWidth;
+    
+    if (windowWidth < 480) {
+      popupWidth = '98%';
+      popupMaxWidth = '350px';
+    } else if (windowWidth < 768) {
+      popupWidth = '95%';
+      popupMaxWidth = '400px';
+    } else if (windowWidth < 1024) {
+      popupWidth = '80%';
+      popupMaxWidth = '600px';
+    } else {
+      popupWidth = '60%';
+      popupMaxWidth = '800px';
+    }
     
     return (
       <div 
@@ -1662,7 +1694,7 @@ const Navbar = ({
       { icon: Truck, label: 'Transport', onClick: handleTransport }
     ];
     
-    const menuWidth = isSmallMobile ? '90%' : (isMobile ? '85%' : '350px');
+    const menuWidth = windowWidth < 480 ? '90%' : (windowWidth < 768 ? '85%' : '350px');
     
     return (
       <div 
@@ -1700,19 +1732,14 @@ const Navbar = ({
             animation: 'slideInRight 0.3s ease'
           }}
         >
+          {/* Mobile Menu Header - Only close button */}
           <div className="mobile-menu-header p-3" style={{
             borderBottom: '1px solid rgba(143, 179, 226, 0.2)',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between'
+            justifyContent: 'flex-end',
+            background: 'rgba(0, 0, 0, 0.2)'
           }}>
-            <div className="d-flex align-items-center">
-              <img src="/img/icon2.png" alt="Logo" style={{ height: '32px', marginRight: '10px' }} />
-              <div>
-                <div className="fw-bold accent" style={{ fontSize: '0.9rem' }}>ATIRATH TRADERS</div>
-                <div className="text-muted" style={{ fontSize: '0.7rem' }}>INDIA PVT.LTD</div>
-              </div>
-            </div>
             <button
               className="btn p-1"
               onClick={() => setMobileMenuOpen(false)}
@@ -1743,50 +1770,16 @@ const Navbar = ({
               </div>
             )}
             
-            {/* Search bar in mobile menu - only show on /product/* pages */}
-            {showSearch && (
-              <div className="mb-4">
-                <form onSubmit={handleSearchSubmit} className="position-relative">
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="Search products..."
-                    value={localSearchQuery}
-                    onChange={handleSearchChange}
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.1)',
-                      border: '1px solid rgba(143, 179, 226, 0.3)',
-                      color: 'white',
-                      fontSize: '0.9rem',
-                      padding: '0.5rem 2.5rem 0.5rem 0.75rem',
-                      borderRadius: '6px',
-                      width: '100%'
-                    }}
-                  />
-                  {localSearchQuery ? (
-                    <button
-                      type="button"
-                      className="btn btn-link position-absolute end-0 top-50 translate-middle-y text-muted p-0"
-                      onClick={handleSearchClear}
-                      style={{ 
-                        right: '10px',
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#8FB3E2',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  ) : (
-                    <Search className="w-4 h-4 position-absolute end-0 top-50 translate-middle-y text-muted" style={{ right: '12px', color: '#8FB3E2' }} />
-                  )}
-                </form>
-              </div>
-            )}
-            
             <div className="mb-4">
-              <h6 className="text-accent mb-3" style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>NAVIGATION</h6>
+              <h6 className="text-accent mb-3" style={{ 
+                fontSize: '0.9rem', 
+                fontWeight: 'bold',
+                color: '#8FB3E2',
+                textTransform: 'uppercase',
+                letterSpacing: '1px'
+              }}>
+                Navigation
+              </h6>
               <div className="d-flex flex-column gap-2">
                 {mobileLinks.map(({ icon: Icon, label, onClick }) => (
                   <button
@@ -1794,20 +1787,28 @@ const Navbar = ({
                     className="mobile-menu-link"
                     onClick={onClick}
                     style={{
-                      fontSize: '0.9rem',
-                      padding: '0.75rem 0',
-                      borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                      fontSize: '0.95rem',
+                      padding: '0.85rem 1rem',
+                      borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
                       background: 'transparent',
                       border: 'none',
                       color: 'white',
                       textAlign: 'left',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '10px',
-                      cursor: 'pointer'
+                      gap: '12px',
+                      cursor: 'pointer',
+                      borderRadius: '6px',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseOver={(e) => {
+                      e.target.style.backgroundColor = 'rgba(143, 179, 226, 0.1)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.target.style.backgroundColor = 'transparent';
                     }}
                   >
-                    <Icon className="w-5 h-5" />
+                    <Icon className="w-5 h-5" style={{ color: '#8FB3E2' }} />
                     {label}
                   </button>
                 ))}
@@ -1816,21 +1817,28 @@ const Navbar = ({
             
             <div className="mb-4">
               <button
-                className="btn btn-success w-100"
+                className="btn w-100"
                 onClick={handleJoinUs}
                 style={{
                   background: 'linear-gradient(135deg, #28a745, #20c997)',
                   border: 'none',
                   fontWeight: '600',
-                  fontSize: '0.9rem',
-                  padding: '0.75rem',
+                  fontSize: '0.95rem',
+                  padding: '0.85rem',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '10px',
-                  borderRadius: '6px',
+                  borderRadius: '8px',
                   color: 'white',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  transition: 'transform 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  e.target.style.transform = 'scale(1.02)';
+                }}
+                onMouseOut={(e) => {
+                  e.target.style.transform = 'scale(1)';
                 }}
               >
                 <Users className="w-5 h-5" />
@@ -1840,35 +1848,57 @@ const Navbar = ({
             
             {!isAuthenticated && (
               <div className="mb-4">
-                <h6 className="text-accent mb-3" style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>ACCOUNT</h6>
+                <h6 className="text-accent mb-3" style={{ 
+                  fontSize: '0.9rem', 
+                  fontWeight: 'bold',
+                  color: '#8FB3E2',
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px'
+                }}>
+                  Account
+                </h6>
                 <div className="d-flex flex-column gap-2">
                   <button
-                    className="btn btn-outline-light w-100"
+                    className="btn w-100"
                     onClick={() => auth('signin')}
                     style={{ 
-                      fontSize: '0.9rem', 
-                      padding: '0.75rem',
+                      fontSize: '0.95rem', 
+                      padding: '0.85rem',
                       background: 'transparent',
-                      border: '1px solid rgba(255, 255, 255, 0.5)',
-                      borderRadius: '6px',
-                      color: 'white',
-                      cursor: 'pointer'
+                      border: '1px solid rgba(143, 179, 226, 0.5)',
+                      borderRadius: '8px',
+                      color: '#8FB3E2',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseOver={(e) => {
+                      e.target.style.backgroundColor = 'rgba(143, 179, 226, 0.1)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.target.style.backgroundColor = 'transparent';
                     }}
                   >
                     <User className="w-5 h-5 me-2" />
                     Sign In
                   </button>
                   <button
-                    className="btn btn-primary w-100"
+                    className="btn w-100"
                     onClick={() => auth('signup')}
                     style={{ 
-                      fontSize: '0.9rem', 
-                      padding: '0.75rem',
+                      fontSize: '0.95rem', 
+                      padding: '0.85rem',
                       background: '#8FB3E2',
                       border: 'none',
-                      borderRadius: '6px',
+                      borderRadius: '8px',
                       color: 'white',
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseOver={(e) => {
+                      e.target.style.backgroundColor = '#7a9fd1';
+                    }}
+                    onMouseOut={(e) => {
+                      e.target.style.backgroundColor = '#8FB3E2';
                     }}
                   >
                     <User className="w-5 h-5 me-2" />
@@ -1881,20 +1911,27 @@ const Navbar = ({
             {isAuthenticated && (
               <div className="mb-4">
                 <button
-                  className="btn btn-outline-danger w-100"
+                  className="btn w-100"
                   onClick={signOut}
                   style={{ 
-                    fontSize: '0.9rem', 
-                    padding: '0.75rem',
+                    fontSize: '0.95rem', 
+                    padding: '0.85rem',
                     background: 'transparent',
                     border: '1px solid #f44336',
-                    borderRadius: '6px',
+                    borderRadius: '8px',
                     color: '#f44336',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '10px'
+                    gap: '10px',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseOver={(e) => {
+                    e.target.style.backgroundColor = 'rgba(244, 67, 54, 0.1)';
+                  }}
+                  onMouseOut={(e) => {
+                    e.target.style.backgroundColor = 'transparent';
                   }}
                 >
                   <LogOut className="w-5 h-5" />
@@ -1904,35 +1941,57 @@ const Navbar = ({
             )}
             
             <div className="mt-4 pt-4 border-top" style={{ borderColor: 'rgba(143, 179, 226, 0.2)' }}>
-              <h6 className="text-accent mb-3" style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>CONTACT US</h6>
+              <h6 className="text-accent mb-3" style={{ 
+                fontSize: '0.9rem', 
+                fontWeight: 'bold',
+                color: '#8FB3E2',
+                textTransform: 'uppercase',
+                letterSpacing: '1px'
+              }}>
+                Contact Us
+              </h6>
               <div className="d-flex flex-column gap-2">
                 <button
-                  className="btn btn-outline-accent w-100"
+                  className="btn w-100"
                   onClick={handlePhoneCall}
                   style={{ 
-                    fontSize: '0.9rem', 
-                    padding: '0.75rem',
+                    fontSize: '0.95rem', 
+                    padding: '0.85rem',
                     background: 'transparent',
                     border: '1px solid #8FB3E2',
-                    borderRadius: '6px',
+                    borderRadius: '8px',
                     color: '#8FB3E2',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseOver={(e) => {
+                    e.target.style.backgroundColor = 'rgba(143, 179, 226, 0.1)';
+                  }}
+                  onMouseOut={(e) => {
+                    e.target.style.backgroundColor = 'transparent';
                   }}
                 >
                   <PhoneCall className="w-5 h-5 me-2" />
                   Call Now
                 </button>
                 <button
-                  className="btn btn-outline-success w-100"
+                  className="btn w-100"
                   onClick={handleWhatsAppCall}
                   style={{ 
-                    fontSize: '0.9rem', 
-                    padding: '0.75rem',
+                    fontSize: '0.95rem', 
+                    padding: '0.85rem',
                     background: 'transparent',
                     border: '1px solid #28a745',
-                    borderRadius: '6px',
+                    borderRadius: '8px',
                     color: '#28a745',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseOver={(e) => {
+                    e.target.style.backgroundColor = 'rgba(40, 167, 69, 0.1)';
+                  }}
+                  onMouseOut={(e) => {
+                    e.target.style.backgroundColor = 'transparent';
                   }}
                 >
                   <MessageCircle className="w-5 h-5 me-2" />
@@ -1947,7 +2006,8 @@ const Navbar = ({
   };
 
   const renderDesktopView = () => {
-    if (!isDesktop) return null;
+    // Show desktop view for screens 1024px and above (iPad Pro, Nest Hub, Desktop)
+    if (isMobileView) return null;
     
     const desktopLinks = [
       { icon: Home, label: 'Home', onClick: () => handleNavigation('home') },
@@ -1955,13 +2015,21 @@ const Navbar = ({
       { icon: Package, label: 'Products', onClick: () => handleNavigation('products') },
       { icon: Phone, label: 'Contact', onClick: () => handleNavigation('contact') }
     ];
-   
+    
+    // Adjust navbar height for different screen sizes
+    const navbarHeight = windowWidth < 1200 ? '58px' : '60px';
+    const fontSize = windowWidth < 1200 ? '0.9rem' : '0.95rem';
+    const logoHeight = windowWidth < 1200 ? '40px' : '42px';
+    const companyNameSize = windowWidth < 1200 ? '1rem' : '1.1rem';
+    const companySubtitleSize = windowWidth < 1200 ? '0.85rem' : '0.9rem';
+    const taglineSize = windowWidth < 1200 ? '0.7rem' : '0.75rem';
+    
     return (
       <nav className="navbar glass" style={{
         display: 'flex',
         alignItems: 'center',
-        padding: '0 1rem',
-        height: '60px',
+        padding: windowWidth < 1200 ? '0 0.8rem' : '0 1rem',
+        height: navbarHeight,
         position: 'fixed',
         top: 0,
         left: 0,
@@ -1971,18 +2039,38 @@ const Navbar = ({
         backdropFilter: 'blur(10px)',
         borderBottom: '1px solid rgba(143, 179, 226, 0.2)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, marginRight: '1rem' }}>
-          <div style={{ marginRight: '0.5rem' }}>
-            <img src="/img/icon2.png" alt="Logo" style={{ height: '40px' }} />
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          flexShrink: 0, 
+          marginRight: windowWidth < 1200 ? '0.8rem' : '1rem' 
+        }}>
+          <div style={{ marginRight: windowWidth < 1200 ? '0.4rem' : '0.5rem' }}>
+            <img src="/img/icon2.png" alt="Logo" style={{ height: logoHeight }} />
           </div>
           <div>
-            <div className="fw-bold accent mb-0" style={{ fontSize: '1.1rem', lineHeight: '1.1' }}>
+            {/* Company name in #8FB3E2 color */}
+            <div className="fw-bold mb-0" style={{ 
+              fontSize: companyNameSize, 
+              lineHeight: '1.1',
+              color: '#8FB3E2'
+            }}>
               ATIRATH TRADERS
             </div>
-            <div className="fw-bold accent mb-0" style={{ fontSize: '0.9rem', lineHeight: '1.1' }}>
+            <div className="fw-bold mb-0" style={{ 
+              fontSize: companySubtitleSize, 
+              lineHeight: '1.1',
+              color: '#8FB3E2'
+            }}>
               INDIA PVT.LTD
             </div>
-            <div className="opacity-75" style={{ fontSize: '0.75rem', lineHeight: '1.1' }}>
+            {/* Tagline in white color */}
+            <div style={{ 
+              fontSize: taglineSize, 
+              lineHeight: '1.1',
+              color: 'white',
+              opacity: '0.8'
+            }}>
               Diverse Businesses, One Vision
             </div>
           </div>
@@ -2001,8 +2089,8 @@ const Navbar = ({
               className="nav-link-btn"
               onClick={onClick}
               style={{
-                fontSize: '0.95rem',
-                padding: '0.6rem 0.8rem',
+                fontSize: fontSize,
+                padding: windowWidth < 1200 ? '0.5rem 0.7rem' : '0.6rem 0.8rem',
                 background: 'transparent',
                 border: 'none',
                 color: 'white',
@@ -2032,8 +2120,8 @@ const Navbar = ({
               className="nav-link-btn"
               onClick={toggleMoreDropdown}
               style={{
-                fontSize: '0.95rem',
-                padding: '0.6rem 0.8rem',
+                fontSize: fontSize,
+                padding: windowWidth < 1200 ? '0.5rem 0.7rem' : '0.6rem 0.8rem',
                 background: 'transparent',
                 border: 'none',
                 color: 'white',
@@ -2059,9 +2147,19 @@ const Navbar = ({
           </div>
         </div>
         
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0, marginLeft: 'auto' }}>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '10px', 
+          flexShrink: 0, 
+          marginLeft: 'auto' 
+        }}>
           {showSearch && (
-            <div style={{ minWidth: '180px', flexShrink: 1, marginRight: '0.5rem' }}>
+            <div style={{ 
+              minWidth: windowWidth < 1200 ? '160px' : '180px', 
+              flexShrink: 1, 
+              marginRight: windowWidth < 1200 ? '0.4rem' : '0.5rem' 
+            }}>
               <form onSubmit={handleSearchSubmit} style={{ position: 'relative', width: '100%' }}>
                 <input
                   type="text"
@@ -2070,10 +2168,10 @@ const Navbar = ({
                   value={localSearchQuery}
                   onChange={handleSearchChange}
                   style={{ 
-                    fontSize: '0.9rem', 
-                    height: '38px', 
+                    fontSize: windowWidth < 1200 ? '0.85rem' : '0.9rem', 
+                    height: windowWidth < 1200 ? '36px' : '38px', 
                     width: '100%',
-                    padding: '0.5rem 2rem 0.5rem 0.75rem',
+                    padding: windowWidth < 1200 ? '0.4rem 1.8rem 0.4rem 0.7rem' : '0.5rem 2rem 0.5rem 0.75rem',
                     background: 'rgba(255, 255, 255, 0.1)',
                     border: '1px solid rgba(143, 179, 226, 0.3)',
                     borderRadius: '6px',
@@ -2118,10 +2216,10 @@ const Navbar = ({
               background: 'linear-gradient(135deg, #28a745, #20c997)',
               border: 'none',
               fontWeight: '600',
-              fontSize: '0.9rem',
-              padding: '0.5rem 0.8rem',
-              height: '38px',
-              minWidth: '80px',
+              fontSize: windowWidth < 1200 ? '0.85rem' : '0.9rem',
+              padding: windowWidth < 1200 ? '0.45rem 0.7rem' : '0.5rem 0.8rem',
+              height: windowWidth < 1200 ? '36px' : '38px',
+              minWidth: windowWidth < 1200 ? '75px' : '80px',
               borderRadius: '6px',
               color: 'white',
               cursor: 'pointer',
@@ -2129,7 +2227,7 @@ const Navbar = ({
               alignItems: 'center',
               justifyContent: 'center',
               gap: '5px',
-              marginRight: '0.5rem',
+              marginRight: windowWidth < 1200 ? '0.4rem' : '0.5rem',
               transition: 'transform 0.2s'
             }}
             onMouseOver={(e) => {
@@ -2154,9 +2252,9 @@ const Navbar = ({
                 className="auth-btn"
                 onClick={() => auth('signin')}
                 style={{ 
-                  fontSize: '0.9rem', 
-                  padding: '0.5rem 0.8rem', 
-                  height: '38px',
+                  fontSize: windowWidth < 1200 ? '0.85rem' : '0.9rem', 
+                  padding: windowWidth < 1200 ? '0.45rem 0.7rem' : '0.5rem 0.8rem', 
+                  height: windowWidth < 1200 ? '36px' : '38px',
                   background: 'transparent',
                   border: '1px solid rgba(255, 255, 255, 0.5)',
                   borderRadius: '6px',
@@ -2179,9 +2277,9 @@ const Navbar = ({
                 className="auth-btn"
                 onClick={() => auth('signup')}
                 style={{ 
-                  fontSize: '0.9rem', 
-                  padding: '0.5rem 0.8rem', 
-                  height: '38px',
+                  fontSize: windowWidth < 1200 ? '0.85rem' : '0.9rem', 
+                  padding: windowWidth < 1200 ? '0.45rem 0.7rem' : '0.5rem 0.8rem', 
+                  height: windowWidth < 1200 ? '36px' : '38px',
                   background: '#8FB3E2',
                   border: 'none',
                   borderRadius: '6px',
@@ -2207,207 +2305,222 @@ const Navbar = ({
     );
   };
 
-  const renderTabletView = () => {
-    if (!isTablet) return null;
+  const renderMobileView = () => {
+    // Show mobile view for screens below 1024px
+    if (!isMobileView) return null;
     
-    return (
-      <nav className="navbar glass" style={{
-        display: 'flex',
-        alignItems: 'center',
-        padding: '0 0.5rem',
-        height: '56px',
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 1000,
-        background: 'rgba(30, 30, 40, 0.8)',
-        backdropFilter: 'blur(10px)',
-        borderBottom: '1px solid rgba(143, 179, 226, 0.2)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, marginRight: '0.5rem' }}>
-          <div style={{ marginRight: '0.5rem' }}>
-            <img src="/img/icon2.png" alt="Logo" style={{ height: '38px' }} />
+    // For tablets (768px - 1023px)
+    if (windowWidth >= 768) {
+      return (
+        <nav className="navbar glass" style={{
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 0.6rem',
+          height: '58px',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 1000,
+          background: 'rgba(30, 30, 40, 0.8)',
+          backdropFilter: 'blur(10px)',
+          borderBottom: '1px solid rgba(143, 179, 226, 0.2)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, marginRight: '0.6rem' }}>
+            <div style={{ marginRight: '0.4rem' }}>
+              <img src="/img/icon2.png" alt="Logo" style={{ height: '40px' }} />
+            </div>
+            <div>
+              {/* Company name in #8FB3E2 color */}
+              <div className="fw-bold mb-0" style={{ 
+                fontSize: '0.9rem', 
+                lineHeight: '1.1',
+                color: '#8FB3E2'
+              }}>
+                ATIRATH TRADERS
+              </div>
+              <div className="fw-bold mb-0" style={{ 
+                fontSize: '0.75rem', 
+                lineHeight: '1.1',
+                color: '#8FB3E2'
+              }}>
+                INDIA PVT.LTD
+              </div>
+              {/* Tagline in white color */}
+              <div style={{ 
+                fontSize: '0.65rem', 
+                lineHeight: '1.1',
+                color: 'white',
+                opacity: '0.8'
+              }}>
+                Diverse Businesses, One Vision
+              </div>
+            </div>
           </div>
-          <div>
-            <div className="fw-bold accent mb-0" style={{ fontSize: '0.85rem', lineHeight: '1.1' }}>
-              ATIRATH TRADERS
-            </div>
-            <div className="fw-bold accent mb-0" style={{ fontSize: '0.7rem', lineHeight: '1.1' }}>
-              INDIA PVT.LTD
-            </div>
-            <div className="opacity-75" style={{ fontSize: '0.6rem', lineHeight: '1.1' }}>
-              Diverse Businesses, One Vision
-            </div>
-          </div>
-        </div>
-       
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
-          {showSearch && (
-            <div style={{ 
-              flex: 1, 
-              minWidth: '150px', 
-              maxWidth: windowWidth < 900 ? '180px' : '200px',
-              marginRight: '0.5rem' 
-            }}>
-              <form onSubmit={handleSearchSubmit} style={{ position: 'relative', width: '100%' }}>
-                <input
-                  type="text"
-                  className="search-bar"
-                  placeholder="Search products..."
-                  value={localSearchQuery}
-                  onChange={handleSearchChange}
-                  style={{ 
-                    fontSize: '0.8rem', 
-                    height: '34px', 
-                    width: '100%',
-                    padding: '0.4rem 1.8rem 0.4rem 0.6rem',
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    border: '1px solid rgba(143, 179, 226, 0.3)',
-                    borderRadius: '6px',
-                    color: 'white'
-                  }}
-                />
-                {localSearchQuery ? (
-                  <button
-                    type="button"
-                    className="search-clear-btn"
-                    onClick={handleSearchClear}
+         
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
+            {showSearch && (
+              <div style={{ 
+                flex: 1, 
+                minWidth: '160px', 
+                maxWidth: '200px',
+                marginRight: '0.6rem' 
+              }}>
+                <form onSubmit={handleSearchSubmit} style={{ position: 'relative', width: '100%' }}>
+                  <input
+                    type="text"
+                    className="search-bar"
+                    placeholder="Search products..."
+                    value={localSearchQuery}
+                    onChange={handleSearchChange}
                     style={{ 
+                      fontSize: '0.85rem', 
+                      height: '36px', 
+                      width: '100%',
+                      padding: '0.4rem 1.8rem 0.4rem 0.6rem',
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      border: '1px solid rgba(143, 179, 226, 0.3)',
+                      borderRadius: '6px',
+                      color: 'white'
+                    }}
+                  />
+                  {localSearchQuery ? (
+                    <button
+                      type="button"
+                      className="search-clear-btn"
+                      onClick={handleSearchClear}
+                      style={{ 
+                        position: 'absolute', 
+                        right: '6px', 
+                        top: '50%', 
+                        transform: 'translateY(-50%)',
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#8FB3E2',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  ) : (
+                    <Search className="w-3.5 h-3.5" style={{ 
                       position: 'absolute', 
-                      right: '6px', 
+                      right: '8px', 
                       top: '50%', 
                       transform: 'translateY(-50%)',
-                      background: 'transparent',
-                      border: 'none',
-                      color: '#8FB3E2',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                ) : (
-                  <Search className="w-3 h-3" style={{ 
-                    position: 'absolute', 
-                    right: '8px', 
-                    top: '50%', 
-                    transform: 'translateY(-50%)',
-                    color: '#8FB3E2'
-                  }} />
-                )}
-              </form>
-            </div>
-          )}
-          
-          <button
-            className="join-btn"
-            onClick={handleJoinUs}
-            style={{
-              background: 'linear-gradient(135deg, #28a745, #20c997)',
-              border: 'none',
-              fontWeight: '600',
-              fontSize: '0.75rem',
-              padding: '0.35rem 0.6rem',
-              height: '34px',
-              borderRadius: '6px',
-              color: 'white',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '5px',
-              marginRight: '0.5rem'
-            }}
-          >
-            <Users className="w-3 h-3" />
-            Join Us
-          </button>
-         
-          {!isAuthenticated && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '0.5rem' }}>
-              <button
-                className="auth-btn"
-                onClick={() => auth('signin')}
-                style={{ 
-                  fontSize: '0.75rem', 
-                  padding: '0.35rem 0.6rem', 
-                  height: '34px',
-                  background: 'transparent',
-                  border: '1px solid rgba(255, 255, 255, 0.5)',
-                  borderRadius: '6px',
-                  color: 'white',
-                  cursor: 'pointer'
-                }}
-              >
-                Sign In
-              </button>
-              <button
-                className="auth-btn"
-                onClick={() => auth('signup')}
-                style={{ 
-                  fontSize: '0.75rem', 
-                  padding: '0.35rem 0.6rem', 
-                  height: '34px',
-                  background: '#8FB3E2',
-                  border: 'none',
-                  borderRadius: '6px',
-                  color: 'white',
-                  cursor: 'pointer'
-                }}
-              >
-                Sign Up
-              </button>
-            </div>
-          )}
-         
-          {isAuthenticated && (
-            <div style={{ marginRight: '0.5rem' }}>
-              {renderMobileNavbarButton()}
-            </div>
-          )}
-         
-          <button
-            id="menu-btn"
-            onClick={() => setMobileMenuOpen(true)}
-            style={{
-              minWidth: '38px',
-              minHeight: '38px',
-              width: '38px',
-              height: '38px',
-              background: 'transparent',
-              border: 'none',
-              color: '#8FB3E2',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-        </div>
-      </nav>
-    );
-  };
-
-  const renderMobileView = () => {
-    if (!isMobile && !isSmallMobile) return null;
+                      color: '#8FB3E2'
+                    }} />
+                  )}
+                </form>
+              </div>
+            )}
+            
+            <button
+              className="join-btn"
+              onClick={handleJoinUs}
+              style={{
+                background: 'linear-gradient(135deg, #28a745, #20c997)',
+                border: 'none',
+                fontWeight: '600',
+                fontSize: '0.8rem',
+                padding: '0.4rem 0.6rem',
+                height: '36px',
+                borderRadius: '6px',
+                color: 'white',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '5px',
+                marginRight: '0.6rem'
+              }}
+            >
+              <Users className="w-4 h-4" />
+              Join Us
+            </button>
+           
+            {!isAuthenticated && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '0.6rem' }}>
+                <button
+                  className="auth-btn"
+                  onClick={() => auth('signin')}
+                  style={{ 
+                    fontSize: '0.8rem', 
+                    padding: '0.4rem 0.6rem', 
+                    height: '36px',
+                    background: 'transparent',
+                    border: '1px solid rgba(255, 255, 255, 0.5)',
+                    borderRadius: '6px',
+                    color: 'white',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Sign In
+                </button>
+                <button
+                  className="auth-btn"
+                  onClick={() => auth('signup')}
+                  style={{ 
+                    fontSize: '0.8rem', 
+                    padding: '0.4rem 0.6rem', 
+                    height: '36px',
+                    background: '#8FB3E2',
+                    border: 'none',
+                    borderRadius: '6px',
+                    color: 'white',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Sign Up
+                </button>
+              </div>
+            )}
+           
+            {isAuthenticated && (
+              <div style={{ marginRight: '0.6rem' }}>
+                {renderMobileNavbarButton()}
+              </div>
+            )}
+           
+            <button
+              id="menu-btn"
+              onClick={() => setMobileMenuOpen(true)}
+              style={{
+                minWidth: '40px',
+                minHeight: '40px',
+                width: '40px',
+                height: '40px',
+                background: 'transparent',
+                border: 'none',
+                color: '#8FB3E2',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <Menu className="w-5.5 h-5.5" />
+            </button>
+          </div>
+        </nav>
+      );
+    }
     
+    // For mobile phones (below 768px)
     const isVerySmall = windowWidth < 400;
-    const isFoldPhone = windowWidth < 360;
+    const isSmall = windowWidth < 480;
     
-    // Calculate responsive values
-    const navbarHeight = isFoldPhone ? '48px' : (isVerySmall ? '50px' : '54px');
-    const logoHeight = isFoldPhone ? '28px' : (isVerySmall ? '30px' : '34px');
-    const fontSizeTitle = isFoldPhone ? '0.6rem' : (isVerySmall ? '0.65rem' : '0.7rem');
-    const fontSizeSubtitle = isFoldPhone ? '0.45rem' : (isVerySmall ? '0.5rem' : '0.55rem');
-    const fontSizeTagline = isFoldPhone ? '0.35rem' : (isVerySmall ? '0.4rem' : '0.45rem');
+    const navbarHeight = isVerySmall ? '50px' : (isSmall ? '54px' : '56px');
+    const logoHeight = isVerySmall ? '30px' : (isSmall ? '34px' : '36px');
+    const companyNameSize = isVerySmall ? '0.65rem' : (isSmall ? '0.75rem' : '0.8rem');
+    const companySubtitleSize = isVerySmall ? '0.5rem' : (isSmall ? '0.6rem' : '0.65rem');
+    const taglineSize = isVerySmall ? '0.4rem' : (isSmall ? '0.45rem' : '0.5rem');
     
     return (
       <nav className="navbar glass" style={{
         display: 'flex',
         alignItems: 'center',
-        padding: isFoldPhone ? '0 0.3rem' : '0 0.5rem',
+        padding: isVerySmall ? '0 0.3rem' : (isSmall ? '0 0.4rem' : '0 0.5rem'),
         height: navbarHeight,
         position: 'fixed',
         top: 0,
@@ -2422,219 +2535,76 @@ const Navbar = ({
           display: 'flex', 
           alignItems: 'center', 
           flexShrink: 0, 
-          marginRight: isFoldPhone ? '0.2rem' : '0.25rem',
-          maxWidth: '40%'
+          marginRight: isVerySmall ? '0.3rem' : (isSmall ? '0.4rem' : '0.5rem'),
+          maxWidth: '45%'
         }}>
-          <div style={{ marginRight: isFoldPhone ? '0.2rem' : '0.25rem' }}>
+          <div style={{ marginRight: isVerySmall ? '0.2rem' : (isSmall ? '0.3rem' : '0.4rem') }}>
             <img src="/img/icon2.png" alt="Logo" style={{ height: logoHeight }} />
           </div>
           <div style={{ overflow: 'hidden' }}>
-            <div className="fw-bold accent mb-0" style={{ 
-              fontSize: fontSizeTitle, 
+            {/* Company name in #8FB3E2 color */}
+            <div className="fw-bold mb-0" style={{ 
+              fontSize: companyNameSize, 
               lineHeight: '1.1',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
-              textOverflow: 'ellipsis'
+              textOverflow: 'ellipsis',
+              color: '#8FB3E2'
             }}>
               ATIRATH TRADERS
             </div>
-            <div className="fw-bold accent mb-0" style={{ 
-              fontSize: fontSizeSubtitle, 
+            <div className="fw-bold mb-0" style={{ 
+              fontSize: companySubtitleSize, 
               lineHeight: '1.1',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
-              textOverflow: 'ellipsis'
+              textOverflow: 'ellipsis',
+              color: '#8FB3E2'
             }}>
               INDIA PVT.LTD
             </div>
-            <div className="opacity-75" style={{ 
-              fontSize: fontSizeTagline, 
-              lineHeight: '1.1',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis'
-            }}>
-              Diverse Businesses, One Vision
-            </div>
+            {/* Tagline in white color - hidden on very small screens */}
+            {!isVerySmall && (
+              <div style={{ 
+                fontSize: taglineSize, 
+                lineHeight: '1.1',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                color: 'white',
+                opacity: '0.8'
+              }}>
+                Diverse Businesses, One Vision
+              </div>
+            )}
           </div>
         </div>
        
         <div style={{ 
           display: 'flex', 
           alignItems: 'center', 
-          gap: isFoldPhone ? '3px' : '5px', 
+          gap: isVerySmall ? '4px' : (isSmall ? '5px' : '6px'), 
           marginLeft: 'auto',
           flexShrink: 0
         }}>
-          {/* SEARCH BAR FOR MOBILE - Always shown when on product pages */}
+          {/* SEARCH BAR FOR MOBILE */}
           {showSearch && (
             <div style={{ 
               flex: 1, 
-              minWidth: isFoldPhone ? '80px' : (isVerySmall ? '100px' : '120px'),
-              maxWidth: isFoldPhone ? '100px' : (isVerySmall ? '130px' : '160px'),
-              marginRight: isFoldPhone ? '0.2rem' : '0.25rem',
+              minWidth: isVerySmall ? '70px' : (isSmall ? '90px' : '100px'),
+              maxWidth: isVerySmall ? '90px' : (isSmall ? '120px' : '140px'),
+              marginRight: isVerySmall ? '0.3rem' : (isSmall ? '0.4rem' : '0.5rem'),
               display: 'flex',
               alignItems: 'center'
             }}>
               <form onSubmit={handleSearchSubmit} style={{ position: 'relative', width: '100%' }}>
-                <input
-                  type="text"
-                  className="search-bar"
-                  placeholder="Search..."
-                  value={localSearchQuery}
-                  onChange={handleSearchChange}
-                  style={{ 
-                    fontSize: isFoldPhone ? '0.6rem' : (isVerySmall ? '0.65rem' : '0.7rem'), 
-                    height: isFoldPhone ? '28px' : (isVerySmall ? '30px' : '32px'), 
-                    width: '100%',
-                    padding: isFoldPhone ? '0.2rem 1.4rem 0.2rem 0.4rem' : (isVerySmall ? '0.25rem 1.5rem 0.25rem 0.45rem' : '0.3rem 1.6rem 0.3rem 0.5rem'),
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    border: '1px solid rgba(143, 179, 226, 0.3)',
-                    borderRadius: '6px',
-                    color: 'white'
-                  }}
-                />
-                {localSearchQuery ? (
-                  <button
-                    type="button"
-                    className="search-clear-btn"
-                    onClick={handleSearchClear}
-                    style={{ 
-                      position: 'absolute', 
-                      right: '4px', 
-                      top: '50%', 
-                      transform: 'translateY(-50%)',
-                      background: 'transparent',
-                      border: 'none',
-                      color: '#8FB3E2',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <X className={isFoldPhone ? "w-2.5 h-2.5" : "w-3 h-3"} />
-                  </button>
-                ) : (
-                  <Search className={isFoldPhone ? "w-2.5 h-2.5" : "w-3 h-3"} style={{ 
-                    position: 'absolute', 
-                    right: '5px', 
-                    top: '50%', 
-                    transform: 'translateY(-50%)',
-                    color: '#8FB3E2'
-                  }} />
-                )}
-              </form>
-            </div>
-          )}
-         
-          {isAuthenticated && (
-            <div style={{ marginRight: isFoldPhone ? '0.2rem' : '0.25rem' }}>
-              {renderMobileNavbarButton()}
-            </div>
-          )}
-         
-          <button
-            id="menu-btn"
-            onClick={() => setMobileMenuOpen(true)}
-            style={{
-              minWidth: isFoldPhone ? '30px' : (isVerySmall ? '32px' : '36px'),
-              minHeight: isFoldPhone ? '30px' : (isVerySmall ? '32px' : '36px'),
-              width: isFoldPhone ? '30px' : (isVerySmall ? '32px' : '36px'),
-              height: isFoldPhone ? '30px' : (isVerySmall ? '32px' : '36px'),
-              background: 'transparent',
-              border: 'none',
-              color: '#8FB3E2',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
-            <Menu className={isFoldPhone ? "w-4 h-4" : (isVerySmall ? "w-4.5 h-4.5" : "w-5 h-5")} />
-          </button>
-        </div>
-      </nav>
-    );
-  };
-
-  const renderSmallMobileView = () => {
-    if (!isSmallMobile) return null;
-    
-    const isVerySmall = windowWidth < 400;
-    const isFoldPhone = windowWidth < 360;
-    
-    return (
-      <nav className="navbar glass" style={{
-        display: 'flex',
-        alignItems: 'center',
-        padding: isFoldPhone ? '0 0.3rem' : '0 0.5rem',
-        height: isFoldPhone ? '48px' : (isVerySmall ? '50px' : '54px'),
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 1000,
-        background: 'rgba(30, 30, 40, 0.8)',
-        backdropFilter: 'blur(10px)',
-        borderBottom: '1px solid rgba(143, 179, 226, 0.2)'
-      }}>
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          flexShrink: 0, 
-          marginRight: isFoldPhone ? '0.2rem' : '0.25rem',
-          maxWidth: '40%'
-        }}>
-          <div style={{ marginRight: isFoldPhone ? '0.2rem' : '0.25rem' }}>
-            <img src="/img/icon2.png" alt="Logo" style={{ 
-              height: isFoldPhone ? '28px' : (isVerySmall ? '30px' : '34px') 
-            }} />
-          </div>
-          <div style={{ overflow: 'hidden' }}>
-            <div className="fw-bold accent mb-0" style={{ 
-              fontSize: isFoldPhone ? '0.6rem' : (isVerySmall ? '0.65rem' : '0.7rem'), 
-              lineHeight: '1.1',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis'
-            }}>
-              ATIRATH TRADERS
-            </div>
-            <div className="fw-bold accent mb-0" style={{ 
-              fontSize: isFoldPhone ? '0.45rem' : (isVerySmall ? '0.5rem' : '0.55rem'), 
-              lineHeight: '1.1',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis'
-            }}>
-              INDIA PVT.LTD
-            </div>
-          </div>
-        </div>
-       
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: isFoldPhone ? '3px' : '5px', 
-          marginLeft: 'auto',
-          flexShrink: 0
-        }}>
-          {/* SEARCH BAR FOR SMALL MOBILE - Only show icon on very small screens */}
-          {showSearch && (
-            <div style={{ 
-              flex: 1, 
-              minWidth: isFoldPhone ? '60px' : (isVerySmall ? '80px' : '100px'),
-              maxWidth: isFoldPhone ? '80px' : (isVerySmall ? '100px' : '120px'),
-              marginRight: isFoldPhone ? '0.2rem' : '0.25rem',
-              display: 'flex',
-              alignItems: 'center'
-            }}>
-              <form onSubmit={handleSearchSubmit} style={{ position: 'relative', width: '100%' }}>
-                {isFoldPhone ? (
+                {isVerySmall ? (
                   <button
                     type="button"
                     onClick={() => {/* Focus on search when clicked */}}
                     style={{
                       width: '100%',
-                      height: isFoldPhone ? '28px' : (isVerySmall ? '30px' : '32px'),
+                      height: '30px',
                       background: 'rgba(255, 255, 255, 0.1)',
                       border: '1px solid rgba(143, 179, 226, 0.3)',
                       borderRadius: '6px',
@@ -2645,7 +2615,7 @@ const Navbar = ({
                       justifyContent: 'center'
                     }}
                   >
-                    <Search className={isFoldPhone ? "w-3 h-3" : "w-3.5 h-3.5"} />
+                    <Search className="w-3 h-3" />
                   </button>
                 ) : (
                   <input
@@ -2655,10 +2625,10 @@ const Navbar = ({
                     value={localSearchQuery}
                     onChange={handleSearchChange}
                     style={{ 
-                      fontSize: isVerySmall ? '0.65rem' : '0.7rem', 
-                      height: isVerySmall ? '30px' : '32px', 
+                      fontSize: isSmall ? '0.7rem' : '0.75rem', 
+                      height: isSmall ? '32px' : '34px', 
                       width: '100%',
-                      padding: isVerySmall ? '0.25rem 1.5rem 0.25rem 0.45rem' : '0.3rem 1.6rem 0.3rem 0.5rem',
+                      padding: isSmall ? '0.3rem 1.5rem 0.3rem 0.45rem' : '0.35rem 1.6rem 0.35rem 0.5rem',
                       background: 'rgba(255, 255, 255, 0.1)',
                       border: '1px solid rgba(143, 179, 226, 0.3)',
                       borderRadius: '6px',
@@ -2666,7 +2636,7 @@ const Navbar = ({
                     }}
                   />
                 )}
-                {!isFoldPhone && localSearchQuery && (
+                {!isVerySmall && localSearchQuery && (
                   <button
                     type="button"
                     className="search-clear-btn"
@@ -2690,7 +2660,7 @@ const Navbar = ({
           )}
          
           {isAuthenticated && (
-            <div style={{ marginRight: isFoldPhone ? '0.2rem' : '0.25rem' }}>
+            <div style={{ marginRight: isVerySmall ? '0.3rem' : (isSmall ? '0.4rem' : '0.5rem') }}>
               {renderMobileNavbarButton()}
             </div>
           )}
@@ -2699,10 +2669,10 @@ const Navbar = ({
             id="menu-btn"
             onClick={() => setMobileMenuOpen(true)}
             style={{
-              minWidth: isFoldPhone ? '30px' : (isVerySmall ? '32px' : '36px'),
-              minHeight: isFoldPhone ? '30px' : (isVerySmall ? '32px' : '36px'),
-              width: isFoldPhone ? '30px' : (isVerySmall ? '32px' : '36px'),
-              height: isFoldPhone ? '30px' : (isVerySmall ? '32px' : '36px'),
+              minWidth: isVerySmall ? '34px' : (isSmall ? '36px' : '38px'),
+              minHeight: isVerySmall ? '34px' : (isSmall ? '36px' : '38px'),
+              width: isVerySmall ? '34px' : (isSmall ? '36px' : '38px'),
+              height: isVerySmall ? '34px' : (isSmall ? '36px' : '38px'),
               background: 'transparent',
               border: 'none',
               color: '#8FB3E2',
@@ -2712,7 +2682,7 @@ const Navbar = ({
               justifyContent: 'center'
             }}
           >
-            <Menu className={isFoldPhone ? "w-4 h-4" : (isVerySmall ? "w-4.5 h-4.5" : "w-5 h-5")} />
+            <Menu className={isVerySmall ? "w-4 h-4" : (isSmall ? "w-4.5 h-4.5" : "w-5 h-5")} />
           </button>
         </div>
       </nav>
@@ -2722,9 +2692,7 @@ const Navbar = ({
   return (
     <>
       {renderDesktopView()}
-      {renderTabletView()}
       {renderMobileView()}
-      {renderSmallMobileView()}
       {renderOrdersPopup()}
       {renderMobileMenu()}
       {isAuthenticated && userDropdownOpen && renderProfileDropdown()}

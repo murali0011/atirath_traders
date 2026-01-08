@@ -16,7 +16,8 @@ import {
   get,
   push,
   onValue,
-  remove
+  remove,
+  child
 } from "firebase/database";
 
 /* ==========================================================================
@@ -81,155 +82,245 @@ const getNextUserNumber = async () => {
 };
 
 /* ==========================================================================
-   USER PROFILE (SIGNUP / USER SIDE) - FIXED VERSION
+   USER PROFILE (SIGNUP / USER SIDE) - UPDATED WITH RETRY LOGIC
 ========================================================================== */
 
 export const storeUserProfile = async (userData) => {
-  try {
-    console.log('🚀 Starting storeUserProfile with data:', userData);
-    
-    const userNumber = await getNextUserNumber();
-    const userKey = `user-${userNumber}`;
-    
-    console.log('📊 Generated userKey:', userKey, 'userNumber:', userNumber);
+  console.log('🚀 START storeUserProfile:', new Date().toISOString());
+  console.log('📦 User Data Received:', JSON.stringify(userData, null, 2));
 
-    // Create complete profile object with ALL fields
-    const profile = {
-      uid: userData.uid || '',
-      name: userData.name || '',
-      email: userData.email || '',
-      phone: userData.phone || '',
-      countryCode: userData.countryCode || '+91',
-      country: userData.country || 'India',
-      state: userData.state || '',
-      city: userData.city || '',
-      pincode: userData.pincode || '',
-      location: userData.location || '',
-      photoURL: userData.photoURL || '',
-      createdAt: new Date().toISOString(),
-      lastLogin: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      userNumber: userNumber,
-      userKey: userKey,
-      accountStatus: "active",
-      emailVerified: false,
-      phoneVerified: false,
-      orderCount: 0,
-      totalSpent: 0,
-      lastOrderDate: null
-    };
+  let retryCount = 0;
+  const maxRetries = 3;
+  
+  const storeWithRetry = async () => {
+    try {
+      console.log(`🔄 Attempt ${retryCount + 1} to store user profile...`);
+      
+      const userNumber = await getNextUserNumber();
+      const userKey = `user-${userNumber}`;
+      
+      console.log('📊 Generated userKey:', userKey, 'userNumber:', userNumber);
 
-    console.log('💾 Full profile object to store:', profile);
-    console.log('🔍 Checking critical fields:');
-    console.log('- Phone:', profile.phone);
-    console.log('- State:', profile.state);
-    console.log('- City:', profile.city);
-    console.log('- Pincode:', profile.pincode);
-    console.log('- Country:', profile.country);
-    console.log('- Location:', profile.location);
+      // Create complete profile object with ALL fields - ENSURING NO MISSING FIELDS
+      const profile = {
+        uid: userData.uid || '',
+        name: userData.name || '',
+        email: userData.email || '',
+        phone: userData.phone || '',
+        countryCode: userData.countryCode || '+91',
+        country: userData.country || 'India',
+        state: userData.state || '',
+        city: userData.city || '',
+        pincode: userData.pincode || '',
+        location: userData.location || `${userData.city || ''}, ${userData.state || ''}, ${userData.country || ''}`.replace(/^, /, '').replace(/, $/, ''),
+        photoURL: userData.photoURL || '',
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        userNumber: userNumber,
+        userKey: userKey,
+        accountStatus: "active",
+        emailVerified: false,
+        phoneVerified: false,
+        orderCount: 0,
+        totalSpent: 0,
+        lastOrderDate: null
+      };
 
-    // 🔐 Store in private users path
-    console.log('📤 Storing in users/' + userKey);
-    await set(ref(database, `users/${userKey}`), profile);
+      // Validate critical fields
+      const criticalFields = ['phone', 'state', 'city', 'pincode', 'country'];
+      const missingFields = criticalFields.filter(field => !profile[field] || profile[field].toString().trim() === '');
+      
+      if (missingFields.length > 0) {
+        throw new Error(`Missing critical fields: ${missingFields.join(', ')}`);
+      }
 
-    // 👑 Store in admin view path
-    console.log('📤 Storing in adminUsersView/' + userKey);
-    await set(ref(database, `adminUsersView/${userKey}`), profile);
+      console.log('✅ Profile object validated - all fields present');
+      console.log('🔍 Profile details:');
+      console.log('- Name:', profile.name);
+      console.log('- Email:', profile.email);
+      console.log('- Phone:', profile.phone, `(${profile.phone.length} chars)`);
+      console.log('- Country Code:', profile.countryCode);
+      console.log('- Country:', profile.country);
+      console.log('- State:', profile.state);
+      console.log('- City:', profile.city);
+      console.log('- Pincode:', profile.pincode);
+      console.log('- Location:', profile.location);
 
-    console.log('✅ Successfully stored user profile in both paths');
-    
-    // Verify the write
-    console.log('🔍 Verifying data was written...');
-    const verifyRef = ref(database, `users/${userKey}`);
-    const verifySnap = await get(verifyRef);
-    
-    if (verifySnap.exists()) {
-      const verifiedData = verifySnap.val();
-      console.log('✅ Verification successful! Retrieved data:', verifiedData);
-      console.log('📋 Verified fields:');
-      console.log('- Phone:', verifiedData.phone);
-      console.log('- State:', verifiedData.state);
-      console.log('- City:', verifiedData.city);
-      console.log('- Pincode:', verifiedData.pincode);
-      console.log('- Country:', verifiedData.country);
-      console.log('- Location:', verifiedData.location);
-    } else {
-      console.error('❌ Verification failed: No data found at path');
+      // 1️⃣ Store in private users path with transaction-like safety
+      console.log('📤 Writing to users/' + userKey);
+      await set(ref(database, `users/${userKey}`), profile);
+      console.log('✅ Successfully wrote to users/' + userKey);
+
+      // 2️⃣ Store in admin view path
+      console.log('📤 Writing to adminUsersView/' + userKey);
+      await set(ref(database, `adminUsersView/${userKey}`), profile);
+      console.log('✅ Successfully wrote to adminUsersView/' + userKey);
+
+      // 3️⃣ Wait a moment for Firebase to sync
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // 4️⃣ VERIFY THE WRITE - Double check both paths
+      console.log('🔍 Verifying data in both paths...');
+      
+      // Verify users path
+      const verifyUsersRef = ref(database, `users/${userKey}`);
+      const verifyUsersSnap = await get(verifyUsersRef);
+      
+      if (!verifyUsersSnap.exists()) {
+        throw new Error('Verification failed: No data found in users path');
+      }
+      
+      const verifiedUsersData = verifyUsersSnap.val();
+      console.log('✅ Verification SUCCESS in users path');
+      
+      // Verify adminUsersView path
+      const verifyAdminRef = ref(database, `adminUsersView/${userKey}`);
+      const verifyAdminSnap = await get(verifyAdminRef);
+      
+      if (!verifyAdminSnap.exists()) {
+        throw new Error('Verification failed: No data found in adminUsersView path');
+      }
+      
+      const verifiedAdminData = verifyAdminSnap.val();
+      console.log('✅ Verification SUCCESS in adminUsersView path');
+
+      // Check critical fields in both paths
+      const verifyFields = ['phone', 'state', 'city', 'pincode'];
+      let verificationPassed = true;
+      
+      verifyFields.forEach(field => {
+        const usersValue = verifiedUsersData[field];
+        const adminValue = verifiedAdminData[field];
+        
+        console.log(`🔬 Field ${field}: users=${usersValue}, admin=${adminValue}`);
+        
+        if (!usersValue || !adminValue || usersValue !== adminValue) {
+          console.error(`❌ Field ${field} mismatch or missing`);
+          verificationPassed = false;
+        }
+      });
+
+      if (!verificationPassed) {
+        throw new Error('Verification failed: Field mismatch between paths');
+      }
+
+      console.log('🎉 ALL VERIFICATIONS PASSED!');
+      console.log('📋 Final verified data:');
+      console.log('- Phone:', verifiedUsersData.phone, `(${verifiedUsersData.phone.length} chars)`);
+      console.log('- State:', verifiedUsersData.state);
+      console.log('- City:', verifiedUsersData.city);
+      console.log('- Pincode:', verifiedUsersData.pincode);
+      console.log('- Country:', verifiedUsersData.country);
+      console.log('- Location:', verifiedUsersData.location);
+
+      return { 
+        success: true, 
+        userKey, 
+        userNumber,
+        verifiedData: verifiedUsersData
+      };
+
+    } catch (err) {
+      console.error(`❌ Attempt ${retryCount + 1} failed:`, err.message);
+      
+      if (retryCount < maxRetries) {
+        retryCount++;
+        console.log(`🔄 Retrying in 1 second (${retryCount}/${maxRetries})...`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return storeWithRetry();
+      }
+      
+      throw err;
     }
+  };
 
-    return { success: true, userKey, userNumber };
+  try {
+    const result = await storeWithRetry();
+    console.log('🚀 END storeUserProfile - SUCCESS:', new Date().toISOString());
+    return result;
   } catch (err) {
-    console.error("❌ storeUserProfile error:", err);
-    console.error("Error details:", err.message, err.stack);
-    return { success: false, error: err.message };
+    console.error("❌ storeUserProfile FINAL ERROR:", err);
+    console.error("Error stack:", err.stack);
+    return { 
+      success: false, 
+      error: err.message,
+      userData: userData
+    };
   }
 };
 
 /* ==========================================================================
-   USER SIDE READ / UPDATE (AUTH REQUIRED)
+   ENHANCED GET USER PROFILE WITH FALLBACK LOGIC
 ========================================================================== */
 
 export const getUserProfile = async (uid) => {
+  console.log('🔄 getUserProfile called for uid:', uid);
+  
   try {
-    console.log('🔄 getUserProfile called for uid:', uid);
+    // Try multiple paths to find user data
+    const pathsToCheck = [
+      'users',
+      'adminUsersView'
+    ];
     
-    const usersRef = ref(database, "users");
-    const snap = await get(usersRef);
-    
-    if (!snap.exists()) {
-      console.log('❌ No users found in database at all');
-      return null;
-    }
-
-    const users = snap.val();
-    console.log('📦 All users in database:', users);
-
-    for (const key in users) {
-      if (users[key].uid === uid) {
-        const userData = users[key];
-        console.log('✅ Found matching user with key:', key);
-        console.log('📋 User data retrieved:', userData);
+    for (const path of pathsToCheck) {
+      console.log(`🔍 Searching in ${path}...`);
+      
+      const refPath = ref(database, path);
+      const snap = await get(refPath);
+      
+      if (snap.exists()) {
+        const users = snap.val();
         
-        // Ensure all fields are present with defaults
-        const completeUserData = {
-          uid: userData.uid || uid,
-          name: userData.name || '',
-          email: userData.email || '',
-          phone: userData.phone || '',
-          countryCode: userData.countryCode || '+91',
-          country: userData.country || 'India',
-          state: userData.state || '',
-          city: userData.city || '',
-          pincode: userData.pincode || '',
-          location: userData.location || '',
-          photoURL: userData.photoURL || '',
-          createdAt: userData.createdAt || new Date().toISOString(),
-          lastLogin: userData.lastLogin || new Date().toISOString(),
-          updatedAt: userData.updatedAt || new Date().toISOString(),
-          userKey: key,
-          userNumber: userData.userNumber || 0,
-          accountStatus: userData.accountStatus || 'active',
-          emailVerified: userData.emailVerified || false,
-          phoneVerified: userData.phoneVerified || false,
-          orderCount: userData.orderCount || 0,
-          totalSpent: userData.totalSpent || 0,
-          lastOrderDate: userData.lastOrderDate || null
-        };
-
-        console.log('🔍 Complete user data for app:');
-        console.log('- Phone:', completeUserData.phone);
-        console.log('- State:', completeUserData.state);
-        console.log('- City:', completeUserData.city);
-        console.log('- Pincode:', completeUserData.pincode);
-        console.log('- Country:', completeUserData.country);
-        console.log('- Location:', completeUserData.location);
-        
-        return completeUserData;
+        for (const key in users) {
+          if (users[key].uid === uid) {
+            const userData = users[key];
+            console.log(`✅ Found user in ${path} with key:`, key);
+            
+            // Build complete user data with defaults
+            const completeUserData = {
+              uid: userData.uid || uid,
+              name: userData.name || '',
+              email: userData.email || '',
+              phone: userData.phone || '',
+              countryCode: userData.countryCode || '+91',
+              country: userData.country || 'India',
+              state: userData.state || '',
+              city: userData.city || '',
+              pincode: userData.pincode || '',
+              location: userData.location || `${userData.city || ''}, ${userData.state || ''}, ${userData.country || 'India'}`,
+              photoURL: userData.photoURL || '',
+              createdAt: userData.createdAt || new Date().toISOString(),
+              lastLogin: userData.lastLogin || new Date().toISOString(),
+              updatedAt: userData.updatedAt || new Date().toISOString(),
+              userKey: key,
+              userNumber: userData.userNumber || 0,
+              accountStatus: userData.accountStatus || 'active',
+              emailVerified: userData.emailVerified || false,
+              phoneVerified: userData.phoneVerified || false,
+              orderCount: userData.orderCount || 0,
+              totalSpent: userData.totalSpent || 0,
+              lastOrderDate: userData.lastOrderDate || null
+            };
+            
+            console.log('📋 Retrieved user data:');
+            console.log('- Phone:', completeUserData.phone, completeUserData.phone ? `(${completeUserData.phone.length} chars)` : '(empty)');
+            console.log('- State:', completeUserData.state || '(empty)');
+            console.log('- City:', completeUserData.city || '(empty)');
+            console.log('- Pincode:', completeUserData.pincode || '(empty)');
+            console.log('- Country:', completeUserData.country || '(empty)');
+            console.log('- Location:', completeUserData.location || '(empty)');
+            
+            return completeUserData;
+          }
+        }
       }
     }
     
-    console.log('❌ No user found with uid:', uid);
+    console.log('❌ No user found with uid:', uid, 'in any path');
     return null;
+    
   } catch (err) {
     console.error("❌ getUserProfile error:", err);
     console.error("Error details:", err.message, err.stack);
@@ -237,63 +328,71 @@ export const getUserProfile = async (uid) => {
   }
 };
 
+/* ==========================================================================
+   ENHANCED UPDATE LAST LOGIN
+========================================================================== */
+
 export const updateLastLogin = async (uid) => {
   try {
-    const usersRef = ref(database, "users");
-    const snap = await get(usersRef);
+    console.log('🕒 Updating lastLogin for uid:', uid);
     
-    if (!snap.exists()) return;
-
-    const users = snap.val();
-    for (const key in users) {
-      if (users[key].uid === uid) {
-        const time = new Date().toISOString();
-        console.log('🕒 Updating lastLogin for user:', key, 'to:', time);
-        
-        await update(ref(database, `users/${key}`), { lastLogin: time });
-        await update(ref(database, `adminUsersView/${key}`), { lastLogin: time });
-        
-        console.log('✅ lastLogin updated successfully');
-        return;
+    const lastLoginTime = new Date().toISOString();
+    
+    // Find user in both paths
+    const usersRef = ref(database, "users");
+    const adminRef = ref(database, "adminUsersView");
+    
+    const [usersSnap, adminSnap] = await Promise.all([
+      get(usersRef),
+      get(adminRef)
+    ]);
+    
+    let userKey = null;
+    let updates = {};
+    
+    // Find in users path
+    if (usersSnap.exists()) {
+      const users = usersSnap.val();
+      for (const key in users) {
+        if (users[key].uid === uid) {
+          userKey = key;
+          updates[`users/${key}/lastLogin`] = lastLoginTime;
+          break;
+        }
       }
     }
     
-    console.log('❌ No user found to update lastLogin');
+    // Find in admin path
+    if (adminSnap.exists() && userKey) {
+      const adminUsers = adminSnap.val();
+      if (adminUsers[userKey]) {
+        updates[`adminUsersView/${userKey}/lastLogin`] = lastLoginTime;
+      }
+    }
+    
+    if (Object.keys(updates).length > 0) {
+      console.log('📤 Updating lastLogin in paths:', Object.keys(updates));
+      await update(ref(database), updates);
+      console.log('✅ lastLogin updated successfully');
+    } else {
+      console.log('⚠️ No user found to update lastLogin');
+    }
+    
   } catch (err) {
     console.error("❌ updateLastLogin error:", err);
   }
 };
 
+/* ==========================================================================
+   ROBUST UPDATE USER PROFILE
+========================================================================== */
+
 export const updateUserProfile = async (authUid, newData) => {
+  console.log('🔄 updateUserProfile called for uid:', authUid);
+  console.log('📝 New data:', newData);
+  
   try {
-    console.log('🔄 updateUserProfile called for uid:', authUid);
-    console.log('📝 New data to update:', newData);
-
-    const usersRef = ref(database, "users");
-    const snap = await get(usersRef);
-    
-    if (!snap.exists()) {
-      console.log('❌ No users found in database');
-      return false;
-    }
-
-    const users = snap.val();
-    let userKey = null;
-
-    for (const key in users) {
-      if (users[key].uid === authUid) {
-        userKey = key;
-        break;
-      }
-    }
-
-    if (!userKey) {
-      console.log('❌ No user found with uid:', authUid);
-      return false;
-    }
-
-    console.log('✅ Found user with key:', userKey);
-
+    // Build complete update object
     const updateData = {
       name: newData.name || "",
       email: newData.email || "",
@@ -303,21 +402,81 @@ export const updateUserProfile = async (authUid, newData) => {
       state: newData.state || "",
       city: newData.city || "",
       pincode: newData.pincode || "",
-      location: newData.location || "",
+      location: newData.location || `${newData.city || ''}, ${newData.state || ''}, ${newData.country || ''}`,
       photoURL: newData.photoURL || "",
       updatedAt: new Date().toISOString()
     };
-
-    console.log('📤 Updating user profile with data:', updateData);
-
-    // 🔐 update private user data
-    await update(ref(database, `users/${userKey}`), updateData);
-
-    // 👑 sync admin view
-    await update(ref(database, `adminUsersView/${userKey}`), updateData);
-
-    console.log('✅ Profile updated successfully in both paths');
+    
+    console.log('📤 Update data prepared:', updateData);
+    
+    // Find user in database
+    const usersRef = ref(database, "users");
+    const adminRef = ref(database, "adminUsersView");
+    
+    const [usersSnap, adminSnap] = await Promise.all([
+      get(usersRef),
+      get(adminRef)
+    ]);
+    
+    let userKey = null;
+    let updates = {};
+    
+    // Check users path
+    if (usersSnap.exists()) {
+      const users = usersSnap.val();
+      for (const key in users) {
+        if (users[key].uid === authUid) {
+          userKey = key;
+          break;
+        }
+      }
+    }
+    
+    if (!userKey) {
+      console.log('❌ User not found in users path, checking admin path...');
+      if (adminSnap.exists()) {
+        const adminUsers = adminSnap.val();
+        for (const key in adminUsers) {
+          if (adminUsers[key].uid === authUid) {
+            userKey = key;
+            break;
+          }
+        }
+      }
+    }
+    
+    if (!userKey) {
+      console.error('❌ No user found with uid:', authUid);
+      return false;
+    }
+    
+    console.log('✅ Found user with key:', userKey);
+    
+    // Prepare updates for both paths
+    updates[`users/${userKey}`] = updateData;
+    updates[`adminUsersView/${userKey}`] = updateData;
+    
+    // Perform atomic update
+    console.log('📤 Performing atomic update on both paths...');
+    await update(ref(database), updates);
+    
+    console.log('✅ Profile updated successfully');
+    
+    // Verify update
+    const verifyRef = ref(database, `users/${userKey}`);
+    const verifySnap = await get(verifyRef);
+    
+    if (verifySnap.exists()) {
+      const verified = verifySnap.val();
+      console.log('🔍 Update verified:');
+      console.log('- Phone:', verified.phone);
+      console.log('- State:', verified.state);
+      console.log('- City:', verified.city);
+      console.log('- Pincode:', verified.pincode);
+    }
+    
     return true;
+    
   } catch (err) {
     console.error("❌ updateUserProfile error:", err);
     console.error("Error details:", err.message, err.stack);
@@ -326,7 +485,7 @@ export const updateUserProfile = async (authUid, newData) => {
 };
 
 /* ==========================================================================
-   ADMIN PANEL (NO AUTH – HARD CODED ADMIN)
+   ADMIN PANEL FUNCTIONS
 ========================================================================== */
 
 export const getAllUsers = async () => {
@@ -370,8 +529,12 @@ export const deleteUser = async (uid) => {
       if (users[key].uid === uid) {
         console.log('✅ Found user to delete with key:', key);
         
-        await remove(ref(database, `users/${key}`));
-        await remove(ref(database, `adminUsersView/${key}`));
+        // Delete from both paths atomically
+        const updates = {};
+        updates[`users/${key}`] = null;
+        updates[`adminUsersView/${key}`] = null;
+        
+        await update(ref(database), updates);
         
         console.log('✅ User deleted successfully from both paths');
         return true;
@@ -413,29 +576,113 @@ export const submitQuote = async (data) => {
   }
 };
 
-export const migrateUsersToAdminView = async () => {
+/* ==========================================================================
+   DATA MIGRATION & REPAIR UTILITIES
+========================================================================== */
+
+export const repairUserData = async (uid) => {
+  console.log('🔧 Repairing user data for uid:', uid);
+  
   try {
-    console.log('🔄 migrateUsersToAdminView called');
+    // First, find the user
+    const user = await getUserProfile(uid);
     
-    const snap = await get(ref(database, "users"));
-    if (!snap.exists()) {
-      console.log("❌ No users to migrate");
-      return;
+    if (!user) {
+      console.log('❌ User not found for repair');
+      return false;
     }
-
-    const users = snap.val();
-    const updates = {};
-
-    Object.keys(users).forEach(key => {
-      updates[`adminUsersView/${key}`] = users[key];
-    });
-
-    console.log('📤 Migrating', Object.keys(users).length, 'users to adminUsersView');
-    await update(ref(database), updates);
     
-    console.log("✅ Users migrated to adminUsersView successfully");
+    console.log('🔍 User data found:', user);
+    
+    // Check for missing critical fields
+    const criticalFields = ['phone', 'state', 'city', 'pincode', 'country'];
+    const missingFields = criticalFields.filter(field => !user[field] || user[field].toString().trim() === '');
+    
+    if (missingFields.length === 0) {
+      console.log('✅ No missing fields found');
+      return true;
+    }
+    
+    console.log('⚠️ Missing fields:', missingFields);
+    
+    // Try to repair from signup form data in localStorage
+    if (typeof window !== 'undefined') {
+      const signupData = localStorage.getItem('signupFormData');
+      if (signupData) {
+        const formData = JSON.parse(signupData);
+        console.log('🔍 Found signup form data in localStorage:', formData);
+        
+        // Update missing fields from form data
+        const repairData = {};
+        missingFields.forEach(field => {
+          if (formData[field]) {
+            repairData[field] = formData[field];
+            console.log(`🔄 Repairing ${field} from form data:`, formData[field]);
+          }
+        });
+        
+        if (Object.keys(repairData).length > 0) {
+          repairData.location = `${repairData.city || user.city}, ${repairData.state || user.state}, ${repairData.country || user.country}`;
+          repairData.updatedAt = new Date().toISOString();
+          
+          console.log('📤 Repair data:', repairData);
+          await updateUserProfile(uid, repairData);
+          
+          console.log('✅ User data repaired successfully');
+          return true;
+        }
+      }
+    }
+    
+    console.log('⚠️ Could not repair missing fields');
+    return false;
+    
   } catch (err) {
-    console.error("❌ migrateUsersToAdminView error:", err);
+    console.error("❌ repairUserData error:", err);
+    return false;
+  }
+};
+
+export const verifyAndRepairAllUsers = async () => {
+  console.log('🔧 Starting verification and repair of all users...');
+  
+  try {
+    const users = await getAllUsers();
+    console.log(`🔍 Checking ${users.length} users`);
+    
+    let repairedCount = 0;
+    let errors = [];
+    
+    for (const user of users) {
+      try {
+        const criticalFields = ['phone', 'state', 'city', 'pincode', 'country'];
+        const missingFields = criticalFields.filter(field => !user[field] || user[field].toString().trim() === '');
+        
+        if (missingFields.length > 0) {
+          console.log(`⚠️ User ${user.email} missing fields:`, missingFields);
+          
+          // Try to repair
+          const repaired = await repairUserData(user.uid);
+          if (repaired) {
+            repairedCount++;
+          }
+        }
+      } catch (err) {
+        errors.push({ user: user.email, error: err.message });
+        console.error(`❌ Error checking user ${user.email}:`, err.message);
+      }
+    }
+    
+    console.log(`✅ Verification complete. Repaired ${repairedCount} users.`);
+    if (errors.length > 0) {
+      console.log(`❌ Errors:`, errors);
+    }
+    
+    return { repairedCount, errors };
+    
+  } catch (err) {
+    console.error("❌ verifyAndRepairAllUsers error:", err);
+    throw err;
   }
 };
 
@@ -466,4 +713,18 @@ export {
   onAuthStateChanged,
 };
 
-export default { app, auth, database };
+// Default export
+export default { 
+  app, 
+  auth, 
+  database,
+  storeUserProfile,
+  getUserProfile,
+  updateUserProfile,
+  updateLastLogin,
+  getAllUsers,
+  deleteUser,
+  submitQuote,
+  repairUserData,
+  verifyAndRepairAllUsers
+};
