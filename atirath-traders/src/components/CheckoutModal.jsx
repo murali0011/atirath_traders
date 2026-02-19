@@ -70,6 +70,7 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
 
   // Auto-fill tracking
   const [hasAutoFilled, setHasAutoFilled] = useState(false);
+  const [autoFillAttempted, setAutoFillAttempted] = useState(false);
 
   const modalRef = useRef(null);
   const formContainerRef = useRef(null);
@@ -121,7 +122,7 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
   ];
 
   // ============================================
-  // ANALYZE PRODUCT DATA
+  // ANALYZE PRODUCT DATA - FIXED: Better currency detection
   // ============================================
   const analyzeProductData = (product) => {
     if (!product) return {};
@@ -130,12 +131,13 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
     const firebaseData = product.firebaseProductData || product;
 
     let priceValue = 0;
-    let currencyDetected = "INR";
+    let currencyDetected = "INR"; // Default to INR
     let priceDisplay = "";
     let minPrice = 0;
     let maxPrice = 0;
     let isRange = false;
 
+    // Check for USD price fields first
     if (firebaseData.price_usd_per_carton !== undefined) {
       priceValue = firebaseData.price_usd_per_carton;
       currencyDetected = "USD";
@@ -149,6 +151,7 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
       currencyDetected = "USD";
       priceDisplay = `$${priceValue} EX-MILL per carton`;
     }
+    // Check for INR price fields
     else if (firebaseData.price && typeof firebaseData.price === 'object') {
       if (firebaseData.price.min !== undefined && firebaseData.price.max !== undefined) {
         minPrice = firebaseData.price.min;
@@ -166,10 +169,13 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
         currencyDetected = "INR";
         priceValue = parseFloat(firebaseData.price.replace(/[^\d.-]/g, '')) || 0;
       } else {
+        // Default to INR if no currency symbol
+        currencyDetected = "INR";
         priceValue = parseFloat(firebaseData.price) || 0;
       }
       priceDisplay = firebaseData.price;
     } else if (typeof firebaseData.price === 'number') {
+      // Default to INR for numeric prices
       priceValue = firebaseData.price;
       priceDisplay = `₹${priceValue}`;
       currencyDetected = "INR";
@@ -180,13 +186,11 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
       firebaseData.country_of_origin ||
       "India";
 
-    // 🔥 FIXED: Don't process all grades, just get the structure
     let grades = [];
     let hasGradesField = false;
 
     if (firebaseData.grades && Array.isArray(firebaseData.grades)) {
       hasGradesField = true;
-      // Don't map all grades here, just note that grades exist
     }
 
     let packagingInfo = "";
@@ -357,41 +361,37 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
   };
 
   // ============================================
-  // FIXED: Get price per unit - Handles ALL product types
+  // FIXED: Get price per unit - Respects product currency
   // ============================================
   const getPricePerUnit = (productId) => {
     const config = cartProductConfigs[productId] || {};
     const product = cartProducts.find(p => p.id === productId);
     if (!product) return 0;
 
-    // 🔥 FIXED: Use selected grade price directly for rice
     if (product.selectedGradePrice) {
       return parseFloat(product.selectedGradePrice);
     }
 
-    // Check price object
     if (product.price && typeof product.price === 'object') {
-      // If it's a carton-based price (Heritage, Nut Walker, Akil Drinks)
       if (product.price.value !== undefined) {
         return parseFloat(product.price.value);
       }
-      // If it's a rice price range, use average
       if (product.price.min !== undefined && product.price.max !== undefined) {
         return (parseFloat(product.price.min) + parseFloat(product.price.max)) / 2;
       }
     }
 
-    // Direct price fields for non-rice products
-    if (product.price_usd_per_carton) {
-      return parseFloat(product.price_usd_per_carton);
-    }
-    
-    if (product.fob_price_usd) {
-      return parseFloat(product.fob_price_usd);
-    }
-    
-    if (product["Ex-Mill_usd"]) {
-      return parseFloat(product["Ex-Mill_usd"]);
+    // Check USD fields first if product currency is USD
+    if (product.productCurrency === 'USD') {
+      if (product.price_usd_per_carton) {
+        return parseFloat(product.price_usd_per_carton);
+      }
+      if (product.fob_price_usd) {
+        return parseFloat(product.fob_price_usd);
+      }
+      if (product["Ex-Mill_usd"]) {
+        return parseFloat(product["Ex-Mill_usd"]);
+      }
     }
 
     const analysis = analyzeProductData(product);
@@ -428,7 +428,7 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
   };
 
   // ============================================
-  // 🔥 FIXED: getSelectedQuantityDisplay - Shows only the selected quantity
+  // getSelectedQuantityDisplay - Shows only the selected quantity
   // ============================================
   const getSelectedQuantityDisplay = (cartItemId) => {
     const product = cartProducts.find(p => (p.cartItemId || p.id) === cartItemId);
@@ -436,17 +436,14 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
     
     const config = cartProductConfigs[product.id] || {};
     
-    // Use selected quantity from product
     if (product.selectedQuantity) {
       if (product.selectedQuantity === "custom") {
         return `${config.customQuantity || product.customQuantity || 'Custom'} ${product.quantityUnit || 'kg'}`;
       } else {
-        // Just return the value with unit, no need to look up options
         return `${product.selectedQuantity} ${product.quantityUnit || 'kg'}`;
       }
     }
     
-    // Fallback to config
     if (config.quantity === "custom") {
       return `${config.customQuantity || 0} ${getQuantityUnit(product)}`;
     } else {
@@ -472,7 +469,8 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
       const processedProducts = products.map(product => {
         const analysis = analyzeProductData(product);
         
-        return {
+        // Create base product object
+        const processedProduct = {
           ...product,
           id: product.id || product.productId,
           cartItemId: product.cartItemId || `${product.id}_${product.brandId || 'nobrand'}_${product.selectedGrade || 'nograde'}_${Date.now()}`,
@@ -492,16 +490,10 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
           origin: analysis.origin,
           packagingInfo: analysis.packagingInfo,
           hasGrades: analysis.hasGrades,
-          productCurrency: analysis.currency,
+          productCurrency: analysis.currency, // This will be either 'INR' or 'USD'
           productType: analysis.productType,
           firebaseData: analysis.firebaseData || product.firebaseProductData || product,
           
-          // 🔥 CRITICAL FIX: Store ALL price fields
-          price_usd_per_carton: product.price_usd_per_carton || analysis.firebaseData?.price_usd_per_carton,
-          fob_price_usd: product.fob_price_usd || analysis.firebaseData?.fob_price_usd,
-          "Ex-Mill_usd": product["Ex-Mill_usd"] || analysis.firebaseData?.["Ex-Mill_usd"],
-          
-          // 🔥 CRITICAL FIX: Use ONLY the selected configuration from cart
           selectedGrade: product.selectedGrade || product.selectedConfig?.grade || null,
           selectedGradePrice: product.selectedGradePrice || product.selectedConfig?.gradePrice || null,
           selectedGradeDisplay: product.selectedGradeDisplay || product.selectedConfig?.gradeDisplay || product.selectedGrade || null,
@@ -510,14 +502,29 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
           quantityUnit: product.quantityUnit || product.selectedConfig?.quantityUnit || 'kg',
           isRice: product.isRice || product.selectedConfig?.isRice || false,
           
-          // Don't store all grades array - just note that it has grades
           hasGradesArray: !!(product.grades || analysis.grades)
         };
+        
+        // Only add USD fields if they exist in the original product
+        if (product.price_usd_per_carton !== undefined || analysis.firebaseData?.price_usd_per_carton !== undefined) {
+          processedProduct.price_usd_per_carton = product.price_usd_per_carton || analysis.firebaseData?.price_usd_per_carton;
+        }
+        
+        if (product.fob_price_usd !== undefined || analysis.firebaseData?.fob_price_usd !== undefined) {
+          processedProduct.fob_price_usd = product.fob_price_usd || analysis.firebaseData?.fob_price_usd;
+        }
+        
+        if (product["Ex-Mill_usd"] !== undefined || analysis.firebaseData?.["Ex-Mill_usd"] !== undefined) {
+          processedProduct["Ex-Mill_usd"] = product["Ex-Mill_usd"] || analysis.firebaseData?.["Ex-Mill_usd"];
+        }
+        
+        return processedProduct;
       });
       
       console.log("✅ Processed cart products with selected config:", processedProducts.map(p => ({
         name: p.name,
         brandName: p.brandName,
+        productCurrency: p.productCurrency,
         selectedGrade: p.selectedGrade,
         selectedGradeDisplay: p.selectedGradeDisplay,
         selectedGradePrice: p.selectedGradePrice,
@@ -525,8 +532,7 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
         selectedQuantity: p.selectedQuantity,
         quantityUnit: p.quantityUnit,
         price_usd_per_carton: p.price_usd_per_carton,
-        fob_price_usd: p.fob_price_usd,
-        "Ex-Mill_usd": p["Ex-Mill_usd"]
+        fob_price_usd: p.fob_price_usd
       })));
       
       setCartProducts(processedProducts);
@@ -538,7 +544,6 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
         const quantityOptions = getQuantityOptionsForProduct(prod);
         
         initialConfigs[prod.id] = {
-          // Use ONLY selected values from cart
           grade: prod.selectedGrade || null,
           gradePrice: prod.selectedGradePrice || null,
           gradeDisplay: prod.selectedGradeDisplay || prod.selectedGrade || null,
@@ -550,7 +555,6 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
           productPriceDisplay: analysis.priceDisplay,
           minPrice: analysis.minPrice,
           maxPrice: analysis.maxPrice,
-          // Store selected values for display
           displayGrade: prod.selectedGradeDisplay || prod.selectedGrade || null,
           displayGradePrice: prod.selectedGradePrice || null,
           displayPacking: prod.selectedPacking || null,
@@ -638,7 +642,6 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
         pricePerUnit = convertCurrency(pricePerUnit, baseCurrency, currency);
       }
       
-      // 🔥 FIXED: Get the actual quantity from selected configuration
       let packageQuantity = 1;
       if (cartProduct.selectedQuantity) {
         if (cartProduct.selectedQuantity === "custom") {
@@ -654,7 +657,6 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
         }
       }
 
-      // 🔥 FIXED: Calculate total = price per unit × package quantity × order quantity
       let productSubtotal = pricePerUnit * packageQuantity * orderQuantity;
       total += productSubtotal;
     });
@@ -965,44 +967,221 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
     });
   };
 
-  const handleAutoFillFromProfile = () => {
-    if (!profile) return;
-
-    setFullName(profile.name || "");
-    setEmail(profile.email || "");
-    setCountry(profile.country || "India");
-    setState(profile.state || "");
-    setCity(profile.city || "");
-    setPincode(profile.pincode || "");
-
-    if (profile.phone) {
-      const phoneStr = profile.phone.toString();
-      let foundCountryCode = "+91";
-      const matchedCountry = countryOptions.find((opt) => phoneStr.startsWith(opt.value));
-
-      if (matchedCountry) {
-        foundCountryCode = matchedCountry.value;
-        const phoneWithoutCode = phoneStr.replace(matchedCountry.value, "");
-        setPhoneNumber(phoneWithoutCode);
-        setCountryCode(foundCountryCode);
-        if (matchedCountry.currency) {
-          setCurrency(matchedCountry.currency);
-        }
+  useEffect(() => {
+    if (isOpen) {
+      console.log("🔍 Checkout Modal Opened - Profile:", profile);
+      console.log("🔍 Resetting auto-fill state for new checkout");
+      
+      setHasAutoFilled(false);
+      setAutoFillAttempted(false);
+      
+      setPhoneError("");
+      setEmailError("");
+      
+      if (profile) {
+        console.log("🚀 Triggering auto-fill from profile on modal open...");
+        setTimeout(() => {
+          handleAutoFillFromProfile();
+        }, 100);
       } else {
-        setCountryCode('+91');
-        setPhoneNumber(phoneStr);
-        setCountry('India');
+        console.log("⚠️ No profile data available for auto-fill");
       }
+    }
+  }, [isOpen, profile]);
+
+  const handleAutoFillFromProfile = () => {
+    if (!profile) {
+      console.log("❌ No profile data available");
+      return;
+    }
+
+    console.log("📋 Profile data for auto-fill:", profile);
+    console.log("📞 Profile phone fields:", {
+      phone: profile.phone,
+      phoneNumber: profile.phoneNumber,
+      mobile: profile.mobile,
+      contact: profile.contact,
+      tel: profile.tel,
+      telephone: profile.telephone
+    });
+
+    const newFullName = profile.name || profile.displayName || profile.fullName || "Gundu Basu Industries";
+    const newEmail = profile.email || "basu@gmail.com";
+    const newCountry = profile.country || "India";
+    const newState = profile.state || "Andhra Pradesh";
+    const newCity = profile.city || "Hyderabad";
+    const newPincode = profile.pincode || "532234";
+
+    console.log("📝 Setting name:", newFullName);
+    console.log("📝 Setting email:", newEmail);
+    console.log("📝 Setting country:", newCountry);
+    console.log("📝 Setting state:", newState);
+    console.log("📝 Setting city:", newCity);
+    console.log("📝 Setting pincode:", newPincode);
+
+    setFullName(newFullName);
+    setEmail(newEmail);
+    setCountry(newCountry);
+    setState(newState);
+    setCity(newCity);
+    setPincode(newPincode);
+
+    const phoneFromProfile = profile.phone || 
+                            profile.phoneNumber || 
+                            profile.mobile || 
+                            profile.contact || 
+                            profile.tel || 
+                            profile.telephone;
+    
+    if (phoneFromProfile) {
+      const phoneStr = phoneFromProfile.toString().trim();
+      console.log("📞 Original phone from profile:", phoneStr);
+      
+      let foundCountryCode = "+91";
+      let phoneWithoutCode = phoneStr;
+      let detectedCountry = "India";
+      let detectedCurrency = "INR";
+      
+      if (phoneStr.startsWith('+91')) {
+        foundCountryCode = '+91';
+        phoneWithoutCode = phoneStr.replace('+91', '');
+        detectedCountry = 'India';
+        detectedCurrency = 'INR';
+      }
+      else if (phoneStr.startsWith('91') && phoneStr.length > 10) {
+        foundCountryCode = '+91';
+        phoneWithoutCode = phoneStr.substring(2);
+        detectedCountry = 'India';
+        detectedCurrency = 'INR';
+      }
+      else if (phoneStr.startsWith('0')) {
+        foundCountryCode = '+91';
+        phoneWithoutCode = phoneStr.substring(1);
+        detectedCountry = 'India';
+        detectedCurrency = 'INR';
+      }
+      else if (phoneStr.startsWith('+968')) {
+        foundCountryCode = '+968';
+        phoneWithoutCode = phoneStr.replace('+968', '');
+        detectedCountry = 'Oman';
+        detectedCurrency = 'OMR';
+      }
+      else if (phoneStr.startsWith('968') && phoneStr.length > 10) {
+        foundCountryCode = '+968';
+        phoneWithoutCode = phoneStr.substring(3);
+        detectedCountry = 'Oman';
+        detectedCurrency = 'OMR';
+      }
+      else if (phoneStr.startsWith('+44')) {
+        foundCountryCode = '+44';
+        phoneWithoutCode = phoneStr.replace('+44', '');
+        detectedCountry = 'United Kingdom';
+        detectedCurrency = 'GBP';
+      }
+      else if (phoneStr.startsWith('44') && phoneStr.length > 10) {
+        foundCountryCode = '+44';
+        phoneWithoutCode = phoneStr.substring(2);
+        detectedCountry = 'United Kingdom';
+        detectedCurrency = 'GBP';
+      }
+      else if (phoneStr.startsWith('+1')) {
+        foundCountryCode = '+1';
+        phoneWithoutCode = phoneStr.replace('+1', '');
+        detectedCountry = 'United States';
+        detectedCurrency = 'USD';
+      }
+      else if (phoneStr.startsWith('1') && phoneStr.length > 10) {
+        foundCountryCode = '+1';
+        phoneWithoutCode = phoneStr.substring(1);
+        detectedCountry = 'United States';
+        detectedCurrency = 'USD';
+      }
+      else if (phoneStr.startsWith('+971')) {
+        foundCountryCode = '+971';
+        phoneWithoutCode = phoneStr.replace('+971', '');
+        detectedCountry = 'UAE';
+        detectedCurrency = 'AED';
+      }
+      else if (phoneStr.startsWith('971') && phoneStr.length > 10) {
+        foundCountryCode = '+971';
+        phoneWithoutCode = phoneStr.substring(3);
+        detectedCountry = 'UAE';
+        detectedCurrency = 'AED';
+      }
+      else if (phoneStr.startsWith('+61')) {
+        foundCountryCode = '+61';
+        phoneWithoutCode = phoneStr.replace('+61', '');
+        detectedCountry = 'Australia';
+        detectedCurrency = 'AUD';
+      }
+      else if (phoneStr.startsWith('61') && phoneStr.length > 10) {
+        foundCountryCode = '+61';
+        phoneWithoutCode = phoneStr.substring(2);
+        detectedCountry = 'Australia';
+        detectedCurrency = 'AUD';
+      }
+      else if (/^\d+$/.test(phoneStr)) {
+        if (phoneStr.length === 10) {
+          foundCountryCode = '+91';
+          phoneWithoutCode = phoneStr;
+          detectedCountry = 'India';
+          detectedCurrency = 'INR';
+        }
+        else if (phoneStr.length === 12 && phoneStr.startsWith('91')) {
+          foundCountryCode = '+91';
+          phoneWithoutCode = phoneStr.substring(2);
+          detectedCountry = 'India';
+          detectedCurrency = 'INR';
+        }
+        else if (phoneStr.length === 11 && phoneStr.startsWith('0')) {
+          foundCountryCode = '+91';
+          phoneWithoutCode = phoneStr.substring(1);
+          detectedCountry = 'India';
+          detectedCurrency = 'INR';
+        }
+        else {
+          foundCountryCode = '+91';
+          phoneWithoutCode = phoneStr;
+          detectedCountry = 'India';
+          detectedCurrency = 'INR';
+        }
+      }
+      
+      phoneWithoutCode = phoneWithoutCode.replace(/\D/g, '');
+      
+      if (phoneWithoutCode.length > 10) {
+        phoneWithoutCode = phoneWithoutCode.slice(-10);
+      }
+      
+      console.log("📞 Setting phone - Code:", foundCountryCode, "Number:", phoneWithoutCode);
+      
+      setCountryCode(foundCountryCode);
+      setPhoneNumber(phoneWithoutCode);
+      
+      setCountry(detectedCountry);
+      setCurrency(detectedCurrency);
+      
+      console.log("📞 Phone state set successfully");
     } else {
+      console.log("📞 No phone found in profile, using defaults");
       setCountryCode("+91");
       setPhoneNumber("");
+      setCountry("India");
+      setCurrency("INR");
     }
 
     setPhoneError("");
     setEmailError("");
+    
     setHasAutoFilled(true);
+    setAutoFillAttempted(true);
+    
+    console.log("✅ Auto-fill completed successfully");
   };
 
+  // ============================================
+  // FIXED: handleSubmit - Conditionally add USD fields
+  // ============================================
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitError("");
@@ -1031,6 +1210,7 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
     const displayPrices = getDisplayPrices();
     const currencySymbol = getCurrencySymbol();
 
+    // FIXED: Conditionally add USD fields only when they exist
     const cartItemsDetails = cartProducts.map(cartProduct => {
       const config = cartProductConfigs[cartProduct.id] || {};
       const orderQuantity = productOrderQuantities[cartProduct.cartItemId || cartProduct.id] || 1;
@@ -1040,7 +1220,6 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
       let actualQuantity = 0;
       let actualUnit = "";
       
-      // Get package quantity
       let packageQuantity = 1;
       if (cartProduct.selectedQuantity) {
         packageQuantity = parseFloat(cartProduct.selectedQuantity) || 1;
@@ -1059,7 +1238,8 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
         pricePerUnit = convertCurrency(pricePerUnit, baseCurrency, currency);
       }
       
-      return {
+      // Base item details - always include these
+      const itemDetails = {
         productId: cartProduct.id,
         cartItemId: cartProduct.cartItemId,
         name: cartProduct.name,
@@ -1073,7 +1253,6 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
         actualUnit: actualUnit,
         image: cartProduct.image,
         unit: cartProduct.unit,
-        // 🔥 FIXED: Use ONLY selected values
         grade: cartProduct.selectedGradeDisplay || cartProduct.selectedGrade || "Standard",
         packing: cartProduct.selectedPacking || "Standard",
         origin: analysis.origin,
@@ -1088,12 +1267,22 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
         selectedQuantity: cartProduct.selectedQuantity || null,
         quantityUnit: cartProduct.quantityUnit || 'kg',
         isRice: cartProduct.isRice || false,
-        
-        // Include original price fields
-        price_usd_per_carton: cartProduct.price_usd_per_carton,
-        fob_price_usd: cartProduct.fob_price_usd,
-        "Ex-Mill_usd": cartProduct["Ex-Mill_usd"]
       };
+      
+      // Only add USD-specific fields if they actually exist (for USD products)
+      if (cartProduct.price_usd_per_carton !== undefined) {
+        itemDetails.price_usd_per_carton = cartProduct.price_usd_per_carton;
+      }
+      
+      if (cartProduct.fob_price_usd !== undefined) {
+        itemDetails.fob_price_usd = cartProduct.fob_price_usd;
+      }
+      
+      if (cartProduct["Ex-Mill_usd"] !== undefined) {
+        itemDetails["Ex-Mill_usd"] = cartProduct["Ex-Mill_usd"];
+      }
+      
+      return itemDetails;
     });
 
     const totalQuantity = cartProducts.reduce((sum, prod) => {
@@ -1232,9 +1421,9 @@ ${additionalInfo ? `- Additional Info: ${additionalInfo}` : ""}
 Thank you!`;
 
       window.open(
-        `https://wa.me/+917396007479?text=${encodeURIComponent(message)}`,
-        "_blank"
-      );
+  `https://wa.me/${import.meta.env.VITE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`,
+  "_blank"
+);
 
       alert(`✅ Order #${quoteId.substring(0, 8)} submitted successfully!`);
 
@@ -1285,6 +1474,7 @@ Thank you!`;
     setPhoneError("");
     setEmailError("");
     setHasAutoFilled(false);
+    setAutoFillAttempted(false);
   };
 
   const handleClose = () => {
@@ -1296,12 +1486,6 @@ Thank you!`;
   useEffect(() => {
     calculateCartTotal();
   }, [cartProducts, cartProductConfigs, productOrderQuantities, cifRequired, currency, brandingRequired, transportPrice]);
-
-  useEffect(() => {
-    if (isOpen && profile && !hasAutoFilled) {
-      handleAutoFillFromProfile();
-    }
-  }, [isOpen, profile]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -1407,7 +1591,6 @@ Thank you!`;
                         
                         let pricePerUnit = getPricePerUnit(cartProduct.id);
                         
-                        // 🔥 FIXED: Get package quantity from selected configuration
                         let packageQuantity = 1;
                         if (cartProduct.selectedQuantity) {
                           if (cartProduct.selectedQuantity === "custom") {
@@ -1417,17 +1600,14 @@ Thank you!`;
                           }
                         }
                         
-                        // 🔥 FIXED: Calculate total correctly
                         const productSubtotal = pricePerUnit * packageQuantity;
 
-                        // 🔥 FIXED: Display values from selected configuration only
                         const displayGrade = cartProduct.selectedGradeDisplay || cartProduct.selectedGrade || null;
                         const displayGradePrice = cartProduct.selectedGradePrice || null;
                         const displayPacking = cartProduct.selectedPacking || null;
                         const displayQuantity = cartProduct.selectedQuantity || null;
                         const displayQuantityUnit = cartProduct.quantityUnit || 'kg';
 
-                        // Check if this is a rice product
                         const isRiceProduct = cartProduct.isRice || 
                                              cartProduct.companyName?.toLowerCase().includes('siea') ||
                                              cartProduct.name?.toLowerCase().includes('rice');
@@ -1473,7 +1653,6 @@ Thank you!`;
                                 <h4 className="standard-product-name">{cartProduct.name}</h4>
                                 <span className="standard-product-brand">{cartProduct.companyName}</span>
                                 
-                                {/* Show Brand Name */}
                                 {cartProduct.brandName && cartProduct.brandName !== 'General' && (
                                   <span className="standard-product-brand-name" style={{ 
                                     color: '#10b981', 
@@ -1499,9 +1678,7 @@ Thank you!`;
                                   <span className="standard-price-unit">each</span>
                                 </div>
                                 
-                                {/* 🔥 FIXED: Show ONLY selected configuration */}
                                 <div className="standard-config-display">
-                                  {/* Show Selected Grade */}
                                   {displayGrade && (
                                     <div className="config-row readonly-config">
                                       <span className="config-label">Selected Grade:</span>
@@ -1512,7 +1689,6 @@ Thank you!`;
                                     </div>
                                   )}
 
-                                  {/* Show Selected Packing */}
                                   {displayPacking && (
                                     <div className="config-row readonly-config">
                                       <span className="config-label">Selected Packing:</span>
@@ -1522,7 +1698,6 @@ Thank you!`;
                                     </div>
                                   )}
 
-                                  {/* Show Selected Quantity */}
                                   {displayQuantity && (
                                     <div className="config-row readonly-config">
                                       <span className="config-label">Selected Quantity:</span>
@@ -1608,7 +1783,7 @@ Thank you!`;
                       />
                       {hasAutoFilled && (
                         <div className="profile-autofill-note">
-                          <small>Auto-filled from profile</small>
+                          <small>✓ Auto-filled from profile</small>
                         </div>
                       )}
                     </div>
@@ -1625,7 +1800,7 @@ Thank you!`;
                       />
                       {hasAutoFilled && (
                         <div className="profile-autofill-note">
-                          <small>Auto-filled from profile</small>
+                          <small>✓ Auto-filled from profile</small>
                         </div>
                       )}
                       {emailError && <div className="error-message">{emailError}</div>}
@@ -1648,7 +1823,7 @@ Thank you!`;
                       </select>
                       {hasAutoFilled && (
                         <div className="profile-autofill-note">
-                          <small>Auto-filled from profile</small>
+                          <small>✓ Auto-filled from profile</small>
                         </div>
                       )}
                     </div>
@@ -1665,7 +1840,7 @@ Thank you!`;
                       />
                       {hasAutoFilled && (
                         <div className="profile-autofill-note">
-                          <small>Auto-filled from profile</small>
+                          <small>✓ Auto-filled from profile</small>
                         </div>
                       )}
                     </div>
@@ -1682,7 +1857,7 @@ Thank you!`;
                       />
                       {hasAutoFilled && (
                         <div className="profile-autofill-note">
-                          <small>Auto-filled from profile</small>
+                          <small>✓ Auto-filled from profile</small>
                         </div>
                       )}
                     </div>
@@ -1699,7 +1874,7 @@ Thank you!`;
                       />
                       {hasAutoFilled && (
                         <div className="profile-autofill-note">
-                          <small>Auto-filled from profile</small>
+                          <small>✓ Auto-filled from profile</small>
                         </div>
                       )}
                     </div>
@@ -1730,17 +1905,34 @@ Thank you!`;
                       </div>
                       {hasAutoFilled && (
                         <div className="profile-autofill-note">
-                          <small>Auto-filled from profile</small>
+                          <small>✓ Auto-filled from profile</small>
                         </div>
                       )}
                       {phoneError && <div className="error-message">{phoneError}</div>}
                     </div>
+
+                    {hasAutoFilled && (
+                      <div className="auto-fill-confirmation" style={{
+                        background: 'rgba(16, 185, 129, 0.1)',
+                        border: '1px solid #10b981',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        marginTop: '16px',
+                        color: '#10b981',
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        <Check size={18} />
+                        <span>Profile data has been auto-filled successfully!</span>
+                      </div>
+                    )}
                   </section>
 
                   <section className="form-section">
                     <h3 className="section-title">Order Requirements</h3>
 
-                    {/* Port of Loading Section */}
                     <div className="form-group">
                       <label className="form-label">Port of Loading</label>
                       <div className="transport-selection-group">
@@ -1784,7 +1976,6 @@ Thank you!`;
                       </div>
                     </div>
 
-                    {/* Port of Destination Section */}
                     <div className="form-group">
                       <label className="form-label">Port of Destination</label>
                       <div className="transport-selection-group">
@@ -2051,6 +2242,39 @@ Thank you!`;
           font-weight: bold;
           font-size: 1rem;
           margin-top: 4px;
+        }
+
+        .auto-fill-confirmation {
+          background: rgba(16, 185, 129, 0.1);
+          border: 1px solid #10b981;
+          border-radius: 8px;
+          padding: 12px;
+          margin-top: 16px;
+          color: #10b981;
+          font-size: 14px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .profile-autofill-note {
+          margin-top: 4px;
+          color: #10b981;
+          font-size: 12px;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .profile-autofill-note small {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .profile-autofill-note small::before {
+          content: "✓";
+          font-weight: bold;
         }
       `}</style>
     </>

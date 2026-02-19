@@ -1149,9 +1149,9 @@ Thank you!`;
 
       console.log("📱 WhatsApp Message Created");
       window.open(
-        `https://wa.me/+917396007479?text=${encodeURIComponent(message)}`,
-        "_blank"
-      );
+  `https://wa.me/${import.meta.env.VITE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`,
+  "_blank"
+);
 
       const successMsg = `✅ Order #${quoteId.substring(0, 8)} submitted successfully! Check "My Orders" for details.`;
       alert(successMsg);

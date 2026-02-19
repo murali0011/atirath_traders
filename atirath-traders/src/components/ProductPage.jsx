@@ -43,7 +43,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
   const [productSearchQuery, setProductSearchQuery] = useState('');
   const [cartStatus, setCartStatus] = useState({});
   const [showCartSuccess, setShowCartSuccess] = useState(false);
-  const [addedProductName, setAddedProductName] = useState('');
+  const [addedProduct, setAddedProduct] = useState(null); // 🔥 FIXED: Store full product object instead of just name
 
   // Check mobile view
   useEffect(() => {
@@ -960,12 +960,13 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
     // Add to cart
     addToCart(enhancedProduct);
     
-    // Show success message
-    setAddedProductName(enhancedProduct.name);
+    // 🔥 FIXED: Store the entire product object for success message
+    setAddedProduct(enhancedProduct);
     setShowCartSuccess(true);
     
     setTimeout(() => {
       setShowCartSuccess(false);
+      setAddedProduct(null);
     }, 3000);
   };
 
@@ -1308,8 +1309,8 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
           </div>
         </div>
         
-        {/* Success Message */}
-        {showCartSuccess && (
+        {/* 🔥 FIXED: Success Message - Shows correct cart quantity */}
+        {showCartSuccess && addedProduct && (
           <div className="cart-success-message" style={{
             position: 'fixed',
             top: '100px',
@@ -1327,9 +1328,10 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
           }}>
             <Check size={20} />
             <div>
-              <strong>{addedProductName}</strong> added to cart!
+              <strong>{addedProduct.name}</strong> added to cart!
               <div style={{ fontSize: '0.9rem', opacity: 0.9 }}>
-                {getCartQuantity(addedProductName)} item(s) in cart
+                {/* 🔥 FIXED: Use getCartQuantity with product ID, not product name */}
+                {getCartQuantity(addedProduct.id)} item(s) in cart
               </div>
             </div>
           </div>

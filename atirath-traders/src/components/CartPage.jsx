@@ -16,6 +16,7 @@ import {
   ShoppingBag
 } from 'lucide-react';
 import CheckoutModal from './CheckoutModal';
+import { database, ref, get } from '../firebase'; // 🔥 Import Firebase
 
 const CartPage = () => {
   const navigate = useNavigate();
@@ -36,6 +37,101 @@ const CartPage = () => {
   const [lastSynced, setLastSynced] = useState(null);
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [checkoutProducts, setCheckoutProductsLocal] = useState([]);
+  
+  // 🔥 FIXED: State for complete user profile from database
+  const [completeProfile, setCompleteProfile] = useState(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+
+  // 🔥 FIXED: Fetch complete user data from Firebase when user changes
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!user) {
+        setCompleteProfile(null);
+        return;
+      }
+
+      console.log("👤 Firebase Auth User:", user);
+      setIsLoadingProfile(true);
+
+      try {
+        // Try to find user in 'users' node first
+        const usersRef = ref(database, 'users');
+        const usersSnapshot = await get(usersRef);
+        
+        let userData = null;
+        
+        if (usersSnapshot.exists()) {
+          const users = usersSnapshot.val();
+          // Find user by email or uid
+          const foundUser = Object.values(users).find(
+            u => u.email === user.email || u.uid === user.uid
+          );
+          
+          if (foundUser) {
+            console.log("📋 Found user in 'users' node:", foundUser);
+            userData = foundUser;
+          }
+        }
+
+        // If not found in users, try vendors node
+        if (!userData) {
+          const vendorsRef = ref(database, 'vendors');
+          const vendorsSnapshot = await get(vendorsRef);
+          
+          if (vendorsSnapshot.exists()) {
+            const vendors = vendorsSnapshot.val();
+            const foundVendor = Object.values(vendors).find(
+              v => v.email === user.email || v.uid === user.uid
+            );
+            
+            if (foundVendor) {
+              console.log("📋 Found user in 'vendors' node:", foundVendor);
+              userData = foundVendor;
+            }
+          }
+        }
+
+        // Create complete profile object
+        const profileData = {
+          // From Firebase Auth
+          uid: user.uid,
+          name: user.displayName || userData?.name || "",
+          email: user.email || "",
+          
+          // From database (users/vendors node)
+          phone: userData?.phone || user.phoneNumber || "",
+          country: userData?.country || "India",
+          state: userData?.state || "",
+          city: userData?.city || "",
+          pincode: userData?.pincode || "",
+          
+          // Store the entire userData for reference
+          ...(userData || {})
+        };
+
+        console.log("✅ Complete profile created:", profileData);
+        setCompleteProfile(profileData);
+      } catch (error) {
+        console.error("❌ Error fetching user profile:", error);
+        
+        // Fallback to basic auth data
+        setCompleteProfile({
+          uid: user.uid,
+          name: user.displayName || "",
+          email: user.email || "",
+          phone: user.phoneNumber || "",
+          country: "India",
+          state: "",
+          city: "",
+          pincode: ""
+        });
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    };
+
+    fetchUserProfile();
+  }, [user]);
 
   useEffect(() => {
     const checkCartStatus = () => {
@@ -66,10 +162,9 @@ const CartPage = () => {
   };
 
   // ============================================
-  // FIXED: Get correct currency symbol based on product
+  // Get correct currency symbol based on product
   // ============================================
   const getCurrencySymbol = (item) => {
-    // Indian products (rice, spices, pulses from Indian companies)
     if (item.companyName?.toLowerCase().includes('siea') || 
         item.companyName?.toLowerCase().includes('heritage') ||
         item.companyName?.toLowerCase().includes('sai import') ||
@@ -77,23 +172,21 @@ const CartPage = () => {
         item.category === 'pulses' ||
         item.category === 'spices' ||
         item.isRice) {
-      return '₹'; // Indian Rupee
+      return '₹';
     }
     
-    // US Dollar based products
     if (item.price?.currency === 'USD' || 
         item.price_usd_per_carton ||
         item.fob_price_usd ||
         item["Ex-Mill_usd"]) {
-      return '$'; // US Dollar
+      return '$';
     }
     
-    // Default to INR for Indian products
     return '₹';
   };
 
   // ============================================
-  // FIXED: Display product price with correct currency
+  // Display product price with correct currency
   // ============================================
   const displayProductPrice = (item) => {
     const currencySymbol = getCurrencySymbol(item);
@@ -132,12 +225,11 @@ const CartPage = () => {
   };
 
   // ============================================
-  // FIXED: Get item total price with correct currency
+  // Get item total price with correct currency
   // ============================================
   const getItemTotalPrice = (item) => {
     const currencySymbol = getCurrencySymbol(item);
     
-    // Case 1: Selected grade price (rice products)
     if (item.selectedGradePrice) {
       const pricePerKg = parseFloat(item.selectedGradePrice);
       const packageSize = parseFloat(item.selectedQuantity) || 1;
@@ -152,9 +244,7 @@ const CartPage = () => {
       };
     }
     
-    // Case 2: Price object with type
     if (item.price && typeof item.price === 'object') {
-      // Rice price range
       if (item.price.min !== undefined && item.price.max !== undefined) {
         const min = item.price.min || 0;
         const max = item.price.max || 0;
@@ -169,7 +259,6 @@ const CartPage = () => {
         };
       }
       
-      // Carton-based price (Heritage, Nut Walker, Akil Drinks)
       if (item.price.value !== undefined) {
         const priceValue = parseFloat(item.price.value) || 0;
         const numberOfPackages = item.quantity || 1;
@@ -182,7 +271,6 @@ const CartPage = () => {
       }
     }
     
-    // Case 3: Direct price_usd_per_carton (fallback)
     if (item.price_usd_per_carton !== undefined) {
       const priceValue = parseFloat(item.price_usd_per_carton);
       const numberOfPackages = item.quantity || 1;
@@ -194,7 +282,6 @@ const CartPage = () => {
       };
     }
     
-    // Case 4: fob_price_usd (fallback)
     if (item.fob_price_usd !== undefined) {
       const priceValue = parseFloat(item.fob_price_usd);
       const numberOfPackages = item.quantity || 1;
@@ -206,7 +293,6 @@ const CartPage = () => {
       };
     }
     
-    // Case 5: Ex-Mill_usd (fallback)
     if (item["Ex-Mill_usd"] !== undefined) {
       const priceValue = parseFloat(item["Ex-Mill_usd"]);
       const numberOfPackages = item.quantity || 1;
@@ -218,7 +304,6 @@ const CartPage = () => {
       };
     }
     
-    // Default fallback
     return {
       value: '0.00',
       isRange: false,
@@ -228,29 +313,24 @@ const CartPage = () => {
   };
 
   // ============================================
-  // FIXED: Get unit price display with correct currency
+  // Get unit price display with correct currency
   // ============================================
   const getUnitPriceDisplay = (item) => {
     const currencySymbol = getCurrencySymbol(item);
     
-    // Selected grade price
     if (item.selectedGradePrice) {
       return `${currencySymbol}${parseFloat(item.selectedGradePrice).toFixed(2)} / kg`;
     }
     
-    // Price object
     if (item.price && typeof item.price === 'object') {
-      // If it has display property, use it
       if (item.price.display) {
         return item.price.display;
       }
       
-      // Rice price range
       if (item.price.min !== undefined && item.price.max !== undefined) {
         return `${currencySymbol}${item.price.min.toFixed(2)} - ${currencySymbol}${item.price.max.toFixed(2)} / kg`;
       }
       
-      // Carton-based price
       if (item.price.value !== undefined) {
         if (item.price.type === 'carton') {
           return `${currencySymbol}${item.price.value.toFixed(2)} / carton`;
@@ -259,7 +339,6 @@ const CartPage = () => {
       }
     }
     
-    // Direct price fields
     if (item.price_usd_per_carton !== undefined) {
       return `$${parseFloat(item.price_usd_per_carton).toFixed(2)} / carton`;
     }
@@ -276,7 +355,7 @@ const CartPage = () => {
   };
 
   // ============================================
-  // FIXED: Calculate total cart price correctly
+  // Calculate total cart price correctly
   // ============================================
   const calculateTotalPrice = () => {
     let total = 0;
@@ -309,7 +388,7 @@ const CartPage = () => {
   };
 
   // ============================================
-  // FIXED: Get display name with grade
+  // Get display name with grade
   // ============================================
   const getProductDisplayName = (item) => {
     if (item.selectedGradeDisplay) {
@@ -330,6 +409,9 @@ const CartPage = () => {
       alert('Your cart is empty!');
       return;
     }
+
+    console.log("🛒 Preparing products for checkout from cart:", items);
+    console.log("👤 Complete profile for checkout:", completeProfile);
 
     const productsForCheckout = items.map(item => ({
       ...item,
@@ -357,6 +439,8 @@ const CartPage = () => {
     if (setCheckoutProducts) {
       setCheckoutProducts(productsForCheckout);
     }
+    
+    // Open checkout modal
     setIsCheckoutModalOpen(true);
   };
 
@@ -562,7 +646,7 @@ const CartPage = () => {
           isOpen={isCheckoutModalOpen}
           onClose={handleCheckoutModalClose}
           products={checkoutProducts}
-          profile={user || null}
+          profile={completeProfile}
           onOrderSubmitted={handleOrderSubmitted}
         />
       </>
@@ -754,7 +838,6 @@ const CartPage = () => {
                       />
                       
                       <div style={{ flex: 1 }}>
-                        {/* Product name with grade */}
                         <div style={{ margin: '0 0 0.5rem' }}>
                           <div style={{ fontWeight: 'bold', fontSize: '1.2rem', color: 'white' }}>
                             {item.name}
@@ -775,7 +858,6 @@ const CartPage = () => {
                           {item.companyName} • {item.brandName || 'General'}
                         </p>
                         
-                        {/* Show selected configuration */}
                         {item.selectedPacking && (
                           <p style={{ margin: '0 0 0.25rem', color: '#60a5fa', fontSize: '0.9rem' }}>
                             Packing: {item.selectedPacking}
@@ -853,7 +935,6 @@ const CartPage = () => {
                           </button>
                         </div>
 
-                        {/* Price display with correct currency */}
                         <div style={{ textAlign: 'right', minWidth: '120px' }}>
                           {totalPrice.isRange ? (
                             <>
@@ -1017,9 +1098,9 @@ const CartPage = () => {
                 {user ? (
                   <button
                     onClick={handleCartCheckout}
-                    disabled={isProcessing}
+                    disabled={isProcessing || isLoadingProfile}
                     style={{
-                      background: isProcessing 
+                      background: isProcessing || isLoadingProfile
                         ? '#6b7280' 
                         : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                       border: 'none',
@@ -1028,7 +1109,7 @@ const CartPage = () => {
                       borderRadius: '10px',
                       fontSize: '1.1rem',
                       fontWeight: '600',
-                      cursor: isProcessing ? 'not-allowed' : 'pointer',
+                      cursor: (isProcessing || isLoadingProfile) ? 'not-allowed' : 'pointer',
                       width: '100%',
                       display: 'flex',
                       alignItems: 'center',
@@ -1037,13 +1118,13 @@ const CartPage = () => {
                       transition: 'all 0.3s'
                     }}
                     onMouseOver={(e) => {
-                      if (!isProcessing) {
+                      if (!isProcessing && !isLoadingProfile) {
                         e.target.style.transform = 'translateY(-3px)';
                         e.target.style.boxShadow = '0 10px 25px rgba(16, 185, 129, 0.3)';
                       }
                     }}
                     onMouseOut={(e) => {
-                      if (!isProcessing) {
+                      if (!isProcessing && !isLoadingProfile) {
                         e.target.style.transform = 'translateY(0)';
                         e.target.style.boxShadow = 'none';
                       }
@@ -1053,6 +1134,11 @@ const CartPage = () => {
                       <>
                         <div className="spinner-border spinner-border-sm me-2" role="status"></div>
                         Processing...
+                      </>
+                    ) : isLoadingProfile ? (
+                      <>
+                        <div className="spinner-border spinner-border-sm me-2" role="status"></div>
+                        Loading Profile...
                       </>
                     ) : (
                       <>
@@ -1185,7 +1271,7 @@ const CartPage = () => {
         isOpen={isCheckoutModalOpen}
         onClose={handleCheckoutModalClose}
         products={checkoutProducts}
-        profile={user || null}
+        profile={completeProfile}
         onOrderSubmitted={handleOrderSubmitted}
       />
     </>
