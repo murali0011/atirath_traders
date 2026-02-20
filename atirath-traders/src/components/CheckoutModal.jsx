@@ -46,14 +46,39 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
   const [productOrderQuantities, setProductOrderQuantities] = useState({});
 
   // ============================================
-  // Port of Loading and Port of Destination
+  // TRANSPORT MODULE - PROFESSIONAL
   // ============================================
+  const [transportType, setTransportType] = useState(""); // "", "road", "air", "ocean"
+  
+  // Road Transport Fields
+  const [pickupLocation, setPickupLocation] = useState({
+    city: "",
+    state: "",
+    country: ""
+  });
+  const [deliveryLocation, setDeliveryLocation] = useState({
+    city: "",
+    state: "",
+    country: ""
+  });
+  const [vehicleType, setVehicleType] = useState("");
+
+  // Air Transport Fields
+  const [airportOfLoading, setAirportOfLoading] = useState({
+    country: "",
+    airportName: ""
+  });
+  const [airportOfDestination, setAirportOfDestination] = useState({
+    country: "",
+    airportName: ""
+  });
+
+  // Ocean Transport Fields
   const [portOfLoading, setPortOfLoading] = useState({
     country: "",
     state: "",
     portName: ""
   });
-  
   const [portOfDestination, setPortOfDestination] = useState({
     country: "",
     state: "",
@@ -62,8 +87,8 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
   
   const [transportPrice, setTransportPrice] = useState("0-0");
 
-  // Profile fields
-  const [country, setCountry] = useState("India");
+  // Profile fields - Country is now text input
+  const [country, setCountry] = useState("");
   const [state, setState] = useState("");
   const [city, setCity] = useState("");
   const [pincode, setPincode] = useState("");
@@ -89,22 +114,6 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
     { value: "+90", flag: "🇹🇷", name: "Turkey", length: 10, currency: "TRY" },
   ];
 
-  const countryNames = [
-    { name: "India", code: "IN" },
-    { name: "Oman", code: "OM" },
-    { name: "United Kingdom", code: "GB" },
-    { name: "United States", code: "US" },
-    { name: "UAE", code: "AE" },
-    { name: "Australia", code: "AU" },
-    { name: "Canada", code: "CA" },
-    { name: "Germany", code: "DE" },
-    { name: "France", code: "FR" },
-    { name: "Singapore", code: "SG" },
-    { name: "Japan", code: "JP" },
-    { name: "Turkey", code: "TR" },
-    { name: "China", code: "CN" }
-  ];
-
   const currencyOptions = [
     { value: "INR", symbol: "₹", name: "Indian Rupee" },
     { value: "USD", symbol: "$", name: "US Dollar" },
@@ -121,8 +130,14 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
     { value: "OMR", symbol: "﷼", name: "Omani Rial" }
   ];
 
+  const vehicleOptions = [
+    { value: "truck", label: "Truck" },
+    { value: "container_truck", label: "Container Truck" },
+    { value: "mini_truck", label: "Mini Truck" }
+  ];
+
   // ============================================
-  // ANALYZE PRODUCT DATA - FIXED: Better currency detection
+  // ANALYZE PRODUCT DATA
   // ============================================
   const analyzeProductData = (product) => {
     if (!product) return {};
@@ -361,7 +376,7 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
   };
 
   // ============================================
-  // FIXED: Get price per unit - Respects product currency
+  // Get price per unit
   // ============================================
   const getPricePerUnit = (productId) => {
     const config = cartProductConfigs[productId] || {};
@@ -428,7 +443,7 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
   };
 
   // ============================================
-  // getSelectedQuantityDisplay - Shows only the selected quantity
+  // getSelectedQuantityDisplay
   // ============================================
   const getSelectedQuantityDisplay = (cartItemId) => {
     const product = cartProducts.find(p => (p.cartItemId || p.id) === cartItemId);
@@ -452,7 +467,7 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
   };
 
   // ============================================
-  // Get product currency symbol based on product's original currency
+  // Get product currency symbol
   // ============================================
   const getProductCurrencySymbol = (product) => {
     const analysis = analyzeProductData(product);
@@ -696,9 +711,7 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
   };
 
   const calculateTransportCost = () => {
-    if (!transportPrice || transportPrice === "0-0") {
-      return 0;
-    }
+    if (!transportType) return 0;
 
     const totalQuantity = cartProducts.reduce((sum, prod) => {
       const config = cartProductConfigs[prod.id] || {};
@@ -716,15 +729,19 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
 
     if (totalQuantity <= 0) return 0;
 
-    const [minPrice, maxPrice] = transportPrice.split('-').map(price => parseFloat(price.trim()));
-    if (isNaN(minPrice) || isNaN(maxPrice)) return 0;
+    // Base transport rates (simplified for demo)
+    const baseRates = {
+      road: 5,
+      air: 50,
+      ocean: 15
+    };
 
-    const averagePrice = (minPrice + maxPrice) / 2;
+    const ratePerUnit = baseRates[transportType] || 0;
     
     if (currency === 'INR') {
-      return totalQuantity * averagePrice;
+      return totalQuantity * ratePerUnit;
     } else {
-      return totalQuantity * convertCurrency(averagePrice, 'INR', currency);
+      return totalQuantity * convertCurrency(ratePerUnit, 'INR', currency);
     }
   };
 
@@ -777,7 +794,7 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
     }
     
     let transportCostFormatted = "Not Required";
-    if (transportPrice !== "0-0") {
+    if (transportType) {
       let transportValue = parseFloat(transportCost);
       transportCostFormatted = `${selectedCurrencySymbol}${formatNumber(transportValue)}`;
     }
@@ -862,7 +879,6 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
 
     const selectedCountry = countryOptions.find(opt => opt.value === newCode);
     if (selectedCountry) {
-      setCountry(selectedCountry.name);
       if (selectedCountry.currency) {
         setCurrency(selectedCountry.currency);
       }
@@ -888,7 +904,13 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
   };
 
   const handleCountryNameChange = (e) => {
-    setCountry(e.target.value);
+    const newCountry = e.target.value;
+    setCountry(newCountry);
+    
+    // If country is not India, and road transport is selected, reset it
+    if (newCountry && newCountry.toLowerCase() !== 'india' && transportType === 'road') {
+      setTransportType('');
+    }
   };
 
   const handleStateChangeInput = (e) => {
@@ -915,18 +937,38 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
     setBrandingRequired(e.target.value);
   };
 
+  // ============================================
+  // TRANSPORT TYPE HANDLERS
+  // ============================================
+  const handleTransportTypeChange = (e) => {
+    setTransportType(e.target.value);
+  };
+
+  // Road Transport Handlers
+  const handlePickupLocationChange = (field, value) => {
+    setPickupLocation(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleDeliveryLocationChange = (field, value) => {
+    setDeliveryLocation(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Air Transport Handlers
+  const handleAirportLoadingChange = (field, value) => {
+    setAirportOfLoading(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleAirportDestinationChange = (field, value) => {
+    setAirportOfDestination(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Ocean Transport Handlers
   const handlePortOfLoadingChange = (field, value) => {
-    setPortOfLoading(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setPortOfLoading(prev => ({ ...prev, [field]: value }));
   };
 
   const handlePortOfDestinationChange = (field, value) => {
-    setPortOfDestination(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setPortOfDestination(prev => ({ ...prev, [field]: value }));
   };
 
   const handleCartProductQuantityChange = (productId, value) => {
@@ -948,23 +990,6 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
         customQuantity: value
       }
     }));
-  };
-
-  const handleRemoveCartProduct = (cartItemId) => {
-    setCartProducts(prev => prev.filter(p => (p.cartItemId || p.id) !== cartItemId));
-    setCartProductConfigs(prev => {
-      const newConfigs = { ...prev };
-      const itemToRemove = cartProducts.find(p => (p.cartItemId || p.id) === cartItemId);
-      if (itemToRemove) {
-        delete newConfigs[itemToRemove.id];
-      }
-      return newConfigs;
-    });
-    setProductOrderQuantities(prev => {
-      const newQuantities = { ...prev };
-      delete newQuantities[cartItemId];
-      return newQuantities;
-    });
   };
 
   useEffect(() => {
@@ -996,21 +1021,13 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
     }
 
     console.log("📋 Profile data for auto-fill:", profile);
-    console.log("📞 Profile phone fields:", {
-      phone: profile.phone,
-      phoneNumber: profile.phoneNumber,
-      mobile: profile.mobile,
-      contact: profile.contact,
-      tel: profile.tel,
-      telephone: profile.telephone
-    });
 
-    const newFullName = profile.name || profile.displayName || profile.fullName || "Gundu Basu Industries";
-    const newEmail = profile.email || "basu@gmail.com";
-    const newCountry = profile.country || "India";
-    const newState = profile.state || "Andhra Pradesh";
-    const newCity = profile.city || "Hyderabad";
-    const newPincode = profile.pincode || "532234";
+    const newFullName = profile.name || profile.displayName || profile.fullName || "";
+    const newEmail = profile.email || "";
+    const newCountry = profile.country || "";
+    const newState = profile.state || "";
+    const newCity = profile.city || "";
+    const newPincode = profile.pincode || "";
 
     console.log("📝 Setting name:", newFullName);
     console.log("📝 Setting email:", newEmail);
@@ -1039,111 +1056,75 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
       
       let foundCountryCode = "+91";
       let phoneWithoutCode = phoneStr;
-      let detectedCountry = "India";
-      let detectedCurrency = "INR";
       
       if (phoneStr.startsWith('+91')) {
         foundCountryCode = '+91';
         phoneWithoutCode = phoneStr.replace('+91', '');
-        detectedCountry = 'India';
-        detectedCurrency = 'INR';
       }
       else if (phoneStr.startsWith('91') && phoneStr.length > 10) {
         foundCountryCode = '+91';
         phoneWithoutCode = phoneStr.substring(2);
-        detectedCountry = 'India';
-        detectedCurrency = 'INR';
       }
       else if (phoneStr.startsWith('0')) {
         foundCountryCode = '+91';
         phoneWithoutCode = phoneStr.substring(1);
-        detectedCountry = 'India';
-        detectedCurrency = 'INR';
       }
       else if (phoneStr.startsWith('+968')) {
         foundCountryCode = '+968';
         phoneWithoutCode = phoneStr.replace('+968', '');
-        detectedCountry = 'Oman';
-        detectedCurrency = 'OMR';
       }
       else if (phoneStr.startsWith('968') && phoneStr.length > 10) {
         foundCountryCode = '+968';
         phoneWithoutCode = phoneStr.substring(3);
-        detectedCountry = 'Oman';
-        detectedCurrency = 'OMR';
       }
       else if (phoneStr.startsWith('+44')) {
         foundCountryCode = '+44';
         phoneWithoutCode = phoneStr.replace('+44', '');
-        detectedCountry = 'United Kingdom';
-        detectedCurrency = 'GBP';
       }
       else if (phoneStr.startsWith('44') && phoneStr.length > 10) {
         foundCountryCode = '+44';
         phoneWithoutCode = phoneStr.substring(2);
-        detectedCountry = 'United Kingdom';
-        detectedCurrency = 'GBP';
       }
       else if (phoneStr.startsWith('+1')) {
         foundCountryCode = '+1';
         phoneWithoutCode = phoneStr.replace('+1', '');
-        detectedCountry = 'United States';
-        detectedCurrency = 'USD';
       }
       else if (phoneStr.startsWith('1') && phoneStr.length > 10) {
         foundCountryCode = '+1';
         phoneWithoutCode = phoneStr.substring(1);
-        detectedCountry = 'United States';
-        detectedCurrency = 'USD';
       }
       else if (phoneStr.startsWith('+971')) {
         foundCountryCode = '+971';
         phoneWithoutCode = phoneStr.replace('+971', '');
-        detectedCountry = 'UAE';
-        detectedCurrency = 'AED';
       }
       else if (phoneStr.startsWith('971') && phoneStr.length > 10) {
         foundCountryCode = '+971';
         phoneWithoutCode = phoneStr.substring(3);
-        detectedCountry = 'UAE';
-        detectedCurrency = 'AED';
       }
       else if (phoneStr.startsWith('+61')) {
         foundCountryCode = '+61';
         phoneWithoutCode = phoneStr.replace('+61', '');
-        detectedCountry = 'Australia';
-        detectedCurrency = 'AUD';
       }
       else if (phoneStr.startsWith('61') && phoneStr.length > 10) {
         foundCountryCode = '+61';
         phoneWithoutCode = phoneStr.substring(2);
-        detectedCountry = 'Australia';
-        detectedCurrency = 'AUD';
       }
       else if (/^\d+$/.test(phoneStr)) {
         if (phoneStr.length === 10) {
           foundCountryCode = '+91';
           phoneWithoutCode = phoneStr;
-          detectedCountry = 'India';
-          detectedCurrency = 'INR';
         }
         else if (phoneStr.length === 12 && phoneStr.startsWith('91')) {
           foundCountryCode = '+91';
           phoneWithoutCode = phoneStr.substring(2);
-          detectedCountry = 'India';
-          detectedCurrency = 'INR';
         }
         else if (phoneStr.length === 11 && phoneStr.startsWith('0')) {
           foundCountryCode = '+91';
           phoneWithoutCode = phoneStr.substring(1);
-          detectedCountry = 'India';
-          detectedCurrency = 'INR';
         }
         else {
           foundCountryCode = '+91';
           phoneWithoutCode = phoneStr;
-          detectedCountry = 'India';
-          detectedCurrency = 'INR';
         }
       }
       
@@ -1157,17 +1138,10 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
       
       setCountryCode(foundCountryCode);
       setPhoneNumber(phoneWithoutCode);
-      
-      setCountry(detectedCountry);
-      setCurrency(detectedCurrency);
-      
-      console.log("📞 Phone state set successfully");
     } else {
       console.log("📞 No phone found in profile, using defaults");
       setCountryCode("+91");
       setPhoneNumber("");
-      setCountry("India");
-      setCurrency("INR");
     }
 
     setPhoneError("");
@@ -1179,17 +1153,44 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
     console.log("✅ Auto-fill completed successfully");
   };
 
+  // Determine if road transport should be shown based on country
+  const shouldShowRoadTransport = () => {
+    if (!country) return true; // Default to showing all if no country selected
+    return country.toLowerCase() === 'india';
+  };
+
   // ============================================
-  // FIXED: handleSubmit - Conditionally add USD fields
+  // handleSubmit
   // ============================================
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitError("");
     console.log("🔄 Starting checkout form submission...");
 
-    if (!fullName || !email || !cifRequired || !brandingRequired || !currency) {
+    if (!fullName || !email || !country || !state || !city || !pincode || !cifRequired || !brandingRequired || !currency || !transportType) {
       alert("Please fill all required fields");
       return;
+    }
+
+    // Validate transport fields based on transport type
+    if (transportType === 'road') {
+      if (!pickupLocation.city || !pickupLocation.state || !pickupLocation.country ||
+          !deliveryLocation.city || !deliveryLocation.state || !deliveryLocation.country) {
+        alert("Please fill all pickup and delivery location fields for road transport.");
+        return;
+      }
+    } else if (transportType === 'air') {
+      if (!airportOfLoading.country || !airportOfLoading.airportName ||
+          !airportOfDestination.country || !airportOfDestination.airportName) {
+        alert("Please fill all airport loading and destination fields for air freight.");
+        return;
+      }
+    } else if (transportType === 'ocean') {
+      if (!portOfLoading.country || !portOfLoading.state || !portOfLoading.portName ||
+          !portOfDestination.country || !portOfDestination.state || !portOfDestination.portName) {
+        alert("Please fill all port loading and destination fields for ocean freight.");
+        return;
+      }
     }
 
     if (cartProducts.length === 0) {
@@ -1210,7 +1211,6 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
     const displayPrices = getDisplayPrices();
     const currencySymbol = getCurrencySymbol();
 
-    // FIXED: Conditionally add USD fields only when they exist
     const cartItemsDetails = cartProducts.map(cartProduct => {
       const config = cartProductConfigs[cartProduct.id] || {};
       const orderQuantity = productOrderQuantities[cartProduct.cartItemId || cartProduct.id] || 1;
@@ -1238,7 +1238,7 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
         pricePerUnit = convertCurrency(pricePerUnit, baseCurrency, currency);
       }
       
-      // Base item details - always include these
+      // Base item details
       const itemDetails = {
         productId: cartProduct.id,
         cartItemId: cartProduct.cartItemId,
@@ -1269,7 +1269,7 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
         isRice: cartProduct.isRice || false,
       };
       
-      // Only add USD-specific fields if they actually exist (for USD products)
+      // Only add USD-specific fields if they actually exist
       if (cartProduct.price_usd_per_carton !== undefined) {
         itemDetails.price_usd_per_carton = cartProduct.price_usd_per_carton;
       }
@@ -1306,6 +1306,29 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
       return sum + (pricePerUnit * packageQuantity * orderQuantity);
     }, 0);
 
+    // Build transport details based on type
+    let transportDetails = {};
+    if (transportType === 'road') {
+      transportDetails = {
+        transportType: 'road',
+        pickupLocation,
+        deliveryLocation,
+        vehicleType
+      };
+    } else if (transportType === 'air') {
+      transportDetails = {
+        transportType: 'air',
+        airportOfLoading,
+        airportOfDestination
+      };
+    } else if (transportType === 'ocean') {
+      transportDetails = {
+        transportType: 'ocean',
+        portOfLoading,
+        portOfDestination
+      };
+    }
+
     const quoteData = {
       name: fullName,
       email: email,
@@ -1321,28 +1344,17 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
       cifRequired: cifRequired,
       brandingRequired: brandingRequired,
       currency: currency,
-      portOfLoading: portOfLoading,
-      portOfDestination: portOfDestination,
-      transportPrice: transportPrice !== "0-0" ? `${currencySymbol}${transportPrice} per unit` : "Not Selected",
+      transportDetails,
+      transportCost: transportCost,
       priceBreakdown: {
         note: "This is an estimated bill. Final pricing may vary.",
         originalPrice: `Original Price: ${currencySymbol}${formatNumber(subtotal)}`,
         itemCount: `${cartProducts.length} items in cart`,
         totalQuantity: `Total Quantity: ${totalQuantity} units`,
-        ...(portOfLoading.portName && {
-          portOfLoadingLine: `Port of Loading: ${portOfLoading.portName}, ${portOfLoading.state}, ${portOfLoading.country}`
-        }),
-        ...(portOfDestination.portName && {
-          portOfDestinationLine: `Port of Destination: ${portOfDestination.portName}, ${portOfDestination.state}, ${portOfDestination.country}`
-        }),
-        ...(transportPrice !== "0-0" && {
-          transportPriceLine: `Transport Price: ${currencySymbol}${transportPrice} per unit`
-        }),
+        transportTypeLine: `Transport Type: ${transportType.toUpperCase()}`,
+        transportCostLine: `Transport Cost: ${displayPrices.transportCost}`,
         ...(brandingRequired === "Yes" && {
           brandingCostLine: `Branding/Custom Printing: ${displayPrices.brandingCost}`
-        }),
-        ...(transportPrice !== "0-0" && {
-          transportCostLine: `Transport Cost: ${displayPrices.transportCost}`
         }),
         ...(cifRequired === "Yes" && {
           shippingCostLine: `Shipping Cost: ${displayPrices.shippingCost}`,
@@ -1374,6 +1386,23 @@ const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted })
       const quoteId = await submitQuote(quoteData);
       console.log('✅ Quote submitted successfully with ID:', quoteId);
 
+      // Build transport message based on type
+      let transportMessage = "";
+      if (transportType === 'road') {
+        transportMessage = `- Transport: Road
+- Pickup: ${pickupLocation.city}, ${pickupLocation.state}, ${pickupLocation.country}
+- Delivery: ${deliveryLocation.city}, ${deliveryLocation.state}, ${deliveryLocation.country}
+${vehicleType ? `- Vehicle: ${vehicleType}` : ''}`;
+      } else if (transportType === 'air') {
+        transportMessage = `- Transport: Air Freight
+- Airport of Loading: ${airportOfLoading.airportName}, ${airportOfLoading.country}
+- Airport of Destination: ${airportOfDestination.airportName}, ${airportOfDestination.country}`;
+      } else if (transportType === 'ocean') {
+        transportMessage = `- Transport: Ocean Freight
+- Port of Loading: ${portOfLoading.portName}, ${portOfLoading.state}, ${portOfLoading.country}
+- Port of Destination: ${portOfDestination.portName}, ${portOfDestination.state}, ${portOfDestination.country}`;
+      }
+
       let message = `Hello! I want a quote for ${cartProducts.length} items from my cart:
 - Name: ${fullName}
 - Email: ${email}
@@ -1402,17 +1431,15 @@ ${cartProducts.map((prod, index) => {
         
         return `${index + 1}. ${prod.name}${brandInfo}${gradeInfo} (${prod.companyName}) - ${packageQuantity}${prod.quantityUnit} x ${orderQuantity} = ${priceDisplay}`;
       }).join('\n')}
+${transportMessage}
 - CIF Required: ${cifRequired}
 - Brand Required: ${brandingRequired}
 - Selected Currency: ${currency}
-- Port of Loading: ${portOfLoading.portName ? `${portOfLoading.portName}, ${portOfLoading.state}, ${portOfLoading.country}` : "Not specified"}
-- Port of Destination: ${portOfDestination.portName ? `${portOfDestination.portName}, ${portOfDestination.state}, ${portOfDestination.country}` : "Not specified"}
-${transportPrice !== "0-0" ? `- Transport Price: ${currencySymbol}${transportPrice} per unit` : ""}
 - Estimated Bill:
   • Original Price: ${displayPrices.originalPrice}
   • Items: ${cartProducts.length} products
   ${brandingRequired === "Yes" ? `• Branding/Custom Printing: ${displayPrices.brandingCost}` : ""}
-  ${transportPrice !== "0-0" ? `• Transport Cost: ${displayPrices.transportCost}` : ""}
+  • Transport Cost: ${displayPrices.transportCost}
   ${cifRequired === "Yes" ? `• Shipping Cost: ${displayPrices.shippingCost}` : ""}
   ${cifRequired === "Yes" ? `• Insurance Cost: ${displayPrices.insuranceCost}` : ""}
   ${cifRequired === "Yes" ? `• Taxes & Duties: ${displayPrices.taxes}` : ""}
@@ -1421,9 +1448,9 @@ ${additionalInfo ? `- Additional Info: ${additionalInfo}` : ""}
 Thank you!`;
 
       window.open(
-  `https://wa.me/${import.meta.env.VITE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`,
-  "_blank"
-);
+        `https://wa.me/${import.meta.env.VITE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`,
+        "_blank"
+      );
 
       alert(`✅ Order #${quoteId.substring(0, 8)} submitted successfully!`);
 
@@ -1454,6 +1481,13 @@ Thank you!`;
     setTransportCost("0.00");
     setTotalPrice("0.00");
     
+    // Reset transport fields
+    setTransportType("");
+    setPickupLocation({ city: "", state: "", country: "" });
+    setDeliveryLocation({ city: "", state: "", country: "" });
+    setVehicleType("");
+    setAirportOfLoading({ country: "", airportName: "" });
+    setAirportOfDestination({ country: "", airportName: "" });
     setPortOfLoading({ country: "", state: "", portName: "" });
     setPortOfDestination({ country: "", state: "", portName: "" });
     setTransportPrice("0-0");
@@ -1467,7 +1501,7 @@ Thank you!`;
     setEmail("");
     setPhoneNumber("");
     setCountryCode("+91");
-    setCountry("India");
+    setCountry("");
     setState("");
     setCity("");
     setPincode("");
@@ -1485,7 +1519,7 @@ Thank you!`;
 
   useEffect(() => {
     calculateCartTotal();
-  }, [cartProducts, cartProductConfigs, productOrderQuantities, cifRequired, currency, brandingRequired, transportPrice]);
+  }, [cartProducts, cartProductConfigs, productOrderQuantities, cifRequired, currency, brandingRequired, transportType]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -1509,6 +1543,7 @@ Thank you!`;
 
   const currencySymbol = getCurrencySymbol();
   const displayPrices = getDisplayPrices();
+  const showRoad = shouldShowRoadTransport();
 
   const cartSubtotal = cartProducts.reduce((sum, prod) => {
     const orderQuantity = productOrderQuantities[prod.cartItemId || prod.id] || 1;
@@ -1737,16 +1772,6 @@ Thank you!`;
                                 </div>
                               </div>
                             </div>
-
-                            <div className="standard-product-actions">
-                              <button
-                                type="button"
-                                className="standard-remove-btn"
-                                onClick={() => handleRemoveCartProduct(cartProduct.cartItemId || cartProduct.id)}
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
                           </div>
                         );
                       })}
@@ -1806,26 +1831,25 @@ Thank you!`;
                       {emailError && <div className="error-message">{emailError}</div>}
                     </div>
 
+                    {/* Country - Now text input */}
                     <div className="form-group">
                       <label className="form-label">Country *</label>
-                      <select
+                      <input
+                        type="text"
+                        placeholder="Enter your country (e.g., India, USA, UAE)"
                         value={country}
                         onChange={handleCountryNameChange}
                         required
-                        className="form-select"
-                      >
-                        <option value="">Select Country</option>
-                        {countryNames.map((countryOption) => (
-                          <option key={countryOption.code} value={countryOption.name}>
-                            {countryOption.name}
-                          </option>
-                        ))}
-                      </select>
+                        className="form-input"
+                      />
                       {hasAutoFilled && (
                         <div className="profile-autofill-note">
                           <small>✓ Auto-filled from profile</small>
                         </div>
                       )}
+                      <small className="form-text text-muted d-block mt-1">
+                        Enter your country name
+                      </small>
                     </div>
 
                     <div className="form-group">
@@ -1931,98 +1955,258 @@ Thank you!`;
                   </section>
 
                   <section className="form-section">
+                    <h3 className="section-title">Transport Details</h3>
+
+                    {/* Transport Type Selection - Compulsory */}
+                    <div className="form-group">
+                      <label className="form-label">Select Transport Type *</label>
+                      <select 
+                        value={transportType} 
+                        onChange={handleTransportTypeChange} 
+                        required 
+                        className="form-select"
+                      >
+                        <option value="">Select Transport Type</option>
+                        {showRoad && <option value="road">🚛 Road Transport</option>}
+                        <option value="air">✈️ Air Freight</option>
+                        <option value="ocean">🚢 Ocean Freight</option>
+                      </select>
+                      {!showRoad && country && (
+                        <small className="transport-note" style={{ color: '#f59e0b', display: 'block', marginTop: '4px' }}>
+                          ⚡ Road transport is only available for India. Showing international options.
+                        </small>
+                      )}
+                    </div>
+
+                    {/* Conditional Transport Fields */}
+                    {transportType === 'road' && (
+                      <>
+                        <div className="form-group">
+                          <label className="form-label">Pickup Location *</label>
+                          <div className="transport-location-group">
+                            <input
+                              type="text"
+                              placeholder="City"
+                              value={pickupLocation.city}
+                              onChange={(e) => handlePickupLocationChange('city', e.target.value)}
+                              className="form-input"
+                              required
+                            />
+                            <input
+                              type="text"
+                              placeholder="State"
+                              value={pickupLocation.state}
+                              onChange={(e) => handlePickupLocationChange('state', e.target.value)}
+                              className="form-input"
+                              required
+                            />
+                            <input
+                              type="text"
+                              placeholder="Country"
+                              value={pickupLocation.country}
+                              onChange={(e) => handlePickupLocationChange('country', e.target.value)}
+                              className="form-input"
+                              required
+                            />
+                          </div>
+                        </div>
+
+                        <div className="form-group">
+                          <label className="form-label">Delivery Location *</label>
+                          <div className="transport-location-group">
+                            <input
+                              type="text"
+                              placeholder="City"
+                              value={deliveryLocation.city}
+                              onChange={(e) => handleDeliveryLocationChange('city', e.target.value)}
+                              className="form-input"
+                              required
+                            />
+                            <input
+                              type="text"
+                              placeholder="State"
+                              value={deliveryLocation.state}
+                              onChange={(e) => handleDeliveryLocationChange('state', e.target.value)}
+                              className="form-input"
+                              required
+                            />
+                            <input
+                              type="text"
+                              placeholder="Country"
+                              value={deliveryLocation.country}
+                              onChange={(e) => handleDeliveryLocationChange('country', e.target.value)}
+                              className="form-input"
+                              required
+                            />
+                          </div>
+                        </div>
+
+                        <div className="form-group">
+                          <label className="form-label">Vehicle Type (Optional)</label>
+                          <select 
+                            value={vehicleType} 
+                            onChange={(e) => setVehicleType(e.target.value)} 
+                            className="form-select"
+                          >
+                            <option value="">Select Vehicle Type (Optional)</option>
+                            {vehicleOptions.map(option => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </>
+                    )}
+
+                    {transportType === 'air' && (
+                      <>
+                        <div className="form-group">
+                          <label className="form-label">Airport of Loading *</label>
+                          <div className="airport-group">
+                            <input
+                              type="text"
+                              placeholder="Country"
+                              value={airportOfLoading.country}
+                              onChange={(e) => handleAirportLoadingChange('country', e.target.value)}
+                              className="form-input"
+                              required
+                            />
+                            <input
+                              type="text"
+                              placeholder="Airport Name"
+                              value={airportOfLoading.airportName}
+                              onChange={(e) => handleAirportLoadingChange('airportName', e.target.value)}
+                              className="form-input"
+                              required
+                            />
+                          </div>
+                        </div>
+
+                        <div className="form-group">
+                          <label className="form-label">Airport of Destination *</label>
+                          <div className="airport-group">
+                            <input
+                              type="text"
+                              placeholder="Country"
+                              value={airportOfDestination.country}
+                              onChange={(e) => handleAirportDestinationChange('country', e.target.value)}
+                              className="form-input"
+                              required
+                            />
+                            <input
+                              type="text"
+                              placeholder="Airport Name"
+                              value={airportOfDestination.airportName}
+                              onChange={(e) => handleAirportDestinationChange('airportName', e.target.value)}
+                              className="form-input"
+                              required
+                            />
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {transportType === 'ocean' && (
+                      <>
+                        <div className="form-group">
+                          <label className="form-label">Port of Loading *</label>
+                          <div className="transport-selection-group">
+                            <div className="transport-row">
+                              <div className="transport-column">
+                                <label className="form-label">Country</label>
+                                <input
+                                  type="text"
+                                  placeholder="Enter country"
+                                  value={portOfLoading.country}
+                                  onChange={(e) => handlePortOfLoadingChange('country', e.target.value)}
+                                  className="form-input"
+                                  required
+                                />
+                              </div>
+                              <div className="transport-column">
+                                <label className="form-label">State</label>
+                                <input
+                                  type="text"
+                                  placeholder="Enter state"
+                                  value={portOfLoading.state}
+                                  onChange={(e) => handlePortOfLoadingChange('state', e.target.value)}
+                                  className="form-input"
+                                  required
+                                />
+                              </div>
+                              <div className="transport-column">
+                                <label className="form-label">Port Name</label>
+                                <input
+                                  type="text"
+                                  placeholder="Enter port name"
+                                  value={portOfLoading.portName}
+                                  onChange={(e) => handlePortOfLoadingChange('portName', e.target.value)}
+                                  className="form-input"
+                                  required
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="form-group">
+                          <label className="form-label">Port of Destination *</label>
+                          <div className="transport-selection-group">
+                            <div className="transport-row">
+                              <div className="transport-column">
+                                <label className="form-label">Country</label>
+                                <input
+                                  type="text"
+                                  placeholder="Enter country"
+                                  value={portOfDestination.country}
+                                  onChange={(e) => handlePortOfDestinationChange('country', e.target.value)}
+                                  className="form-input"
+                                  required
+                                />
+                              </div>
+                              <div className="transport-column">
+                                <label className="form-label">State</label>
+                                <input
+                                  type="text"
+                                  placeholder="Enter state"
+                                  value={portOfDestination.state}
+                                  onChange={(e) => handlePortOfDestinationChange('state', e.target.value)}
+                                  className="form-input"
+                                  required
+                                />
+                              </div>
+                              <div className="transport-column">
+                                <label className="form-label">Port Name</label>
+                                <input
+                                  type="text"
+                                  placeholder="Enter port name"
+                                  value={portOfDestination.portName}
+                                  onChange={(e) => handlePortOfDestinationChange('portName', e.target.value)}
+                                  className="form-input"
+                                  required
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {transportType && (
+                      <div className="transport-price-info">
+                        <small>
+                          Transport Cost Estimate: {displayPrices.transportCost}
+                          {transportType === 'road' && ' (Road transport - address to address)'}
+                          {transportType === 'air' && ' (Air freight - airport to airport)'}
+                          {transportType === 'ocean' && ' (Ocean freight - port to port)'}
+                        </small>
+                      </div>
+                    )}
+                  </section>
+
+                  <section className="form-section">
                     <h3 className="section-title">Order Requirements</h3>
-
-                    <div className="form-group">
-                      <label className="form-label">Port of Loading</label>
-                      <div className="transport-selection-group">
-                        <div className="transport-row">
-                          <div className="transport-column">
-                            <label className="form-label">Country</label>
-                            <select
-                              value={portOfLoading.country}
-                              onChange={(e) => handlePortOfLoadingChange('country', e.target.value)}
-                              className="form-select"
-                            >
-                              <option value="">Select Country</option>
-                              {countryNames.map((countryOption) => (
-                                <option key={`loading-${countryOption.code}`} value={countryOption.name}>
-                                  {countryOption.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="transport-column">
-                            <label className="form-label">State</label>
-                            <input
-                              type="text"
-                              placeholder="Enter state"
-                              value={portOfLoading.state}
-                              onChange={(e) => handlePortOfLoadingChange('state', e.target.value)}
-                              className="form-input"
-                            />
-                          </div>
-                          <div className="transport-column">
-                            <label className="form-label">Port Name</label>
-                            <input
-                              type="text"
-                              placeholder="Enter port name"
-                              value={portOfLoading.portName}
-                              onChange={(e) => handlePortOfLoadingChange('portName', e.target.value)}
-                              className="form-input"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">Port of Destination</label>
-                      <div className="transport-selection-group">
-                        <div className="transport-row">
-                          <div className="transport-column">
-                            <label className="form-label">Country</label>
-                            <select
-                              value={portOfDestination.country}
-                              onChange={(e) => handlePortOfDestinationChange('country', e.target.value)}
-                              className="form-select"
-                            >
-                              <option value="">Select Country</option>
-                              {countryNames.map((countryOption) => (
-                                <option key={`destination-${countryOption.code}`} value={countryOption.name}>
-                                  {countryOption.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="transport-column">
-                            <label className="form-label">State</label>
-                            <input
-                              type="text"
-                              placeholder="Enter state"
-                              value={portOfDestination.state}
-                              onChange={(e) => handlePortOfDestinationChange('state', e.target.value)}
-                              className="form-input"
-                            />
-                          </div>
-                          <div className="transport-column">
-                            <label className="form-label">Port Name</label>
-                            <input
-                              type="text"
-                              placeholder="Enter port name"
-                              value={portOfDestination.portName}
-                              onChange={(e) => handlePortOfDestinationChange('portName', e.target.value)}
-                              className="form-input"
-                            />
-                          </div>
-                        </div>
-                        {transportPrice !== "0-0" && (
-                          <div className="transport-price-info">
-                            <small>Transport Price: {currencySymbol}{transportPrice} per unit</small>
-                          </div>
-                        )}
-                      </div>
-                    </div>
 
                     <div className="form-group">
                       <label className="form-label">CIF Required (If Any) *</label>
@@ -2032,7 +2216,7 @@ Thank you!`;
                         <option value="No">No</option>
                       </select>
                       <div className="cif-info">
-                        <small>CIF includes shipping and insurance costs to your destination port</small>
+                        <small>CIF includes shipping and insurance costs to your destination</small>
                       </div>
                     </div>
 
@@ -2104,11 +2288,6 @@ Thank you!`;
 
                   <div className="estimate-note">
                     <small>This is an estimated bill. Final pricing may vary.</small>
-                    {transportPrice !== "0-0" && (
-                      <div className="transport-price-display">
-                        <small>Transport Price: {currencySymbol}{transportPrice} per unit</small>
-                      </div>
-                    )}
                   </div>
 
                   <div className="price-breakdown-grid">
@@ -2122,17 +2301,41 @@ Thank you!`;
                       <span className="price-value">{cartTotalItems} {cartProducts[0]?.quantityUnit || 'kg'}</span>
                     </div>
 
-                    {portOfLoading.portName && (
-                      <div className="price-item">
-                        <span className="price-label">Port of Loading:</span>
-                        <span className="price-value">{portOfLoading.portName}, {portOfLoading.state}, {portOfLoading.country}</span>
+                    {/* Show Transport Summary */}
+                    {transportType && (
+                      <div className="price-item transport-summary">
+                        <span className="price-label">Transport Type:</span>
+                        <span className="price-value">
+                          {transportType === 'road' ? '🚛 Road' : 
+                           transportType === 'air' ? '✈️ Air' : '🚢 Ocean'}
+                        </span>
                       </div>
                     )}
 
-                    {portOfDestination.portName && (
+                    {transportType === 'road' && pickupLocation.city && (
                       <div className="price-item">
-                        <span className="price-label">Port of Destination:</span>
-                        <span className="price-value">{portOfDestination.portName}, {portOfDestination.state}, {portOfDestination.country}</span>
+                        <span className="price-label">Route:</span>
+                        <span className="price-value">
+                          {pickupLocation.city} → {deliveryLocation.city}
+                        </span>
+                      </div>
+                    )}
+
+                    {transportType === 'air' && airportOfLoading.airportName && (
+                      <div className="price-item">
+                        <span className="price-label">Route:</span>
+                        <span className="price-value">
+                          {airportOfLoading.airportName} → {airportOfDestination.airportName}
+                        </span>
+                      </div>
+                    )}
+
+                    {transportType === 'ocean' && portOfLoading.portName && (
+                      <div className="price-item">
+                        <span className="price-label">Route:</span>
+                        <span className="price-value">
+                          {portOfLoading.portName} → {portOfDestination.portName}
+                        </span>
                       </div>
                     )}
 
@@ -2148,7 +2351,7 @@ Thank you!`;
                       </div>
                     )}
 
-                    {transportPrice !== "0-0" && (
+                    {transportType && (
                       <div className="price-item transport-costs">
                         <span className="price-label">Transport Cost:</span>
                         <span className="price-value">{displayPrices.transportCost}</span>
@@ -2187,6 +2390,57 @@ Thank you!`;
       <ThankYouPopup isOpen={showThankYou} onClose={() => setShowThankYou(false)} />
 
       <style>{`
+        .transport-location-group {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+        
+        .transport-location-group input {
+          flex: 1;
+          min-width: 120px;
+        }
+        
+        .airport-group {
+          display: flex;
+          gap: 10px;
+        }
+        
+        .airport-group input {
+          flex: 1;
+        }
+        
+        .transport-note {
+          font-size: 12px;
+          margin-top: 4px;
+        }
+        
+        .transport-price-info {
+          margin-top: 8px;
+          padding: 8px;
+          background: rgba(64, 150, 226, 0.1);
+          border-radius: 4px;
+          color: #4096e2ff;
+          font-weight: 500;
+        }
+        
+        .transport-summary {
+          border-bottom: 1px dashed rgba(255,255,255,0.1);
+          padding-bottom: 8px;
+          margin-bottom: 8px;
+        }
+        
+        .profile-autofill-note {
+          margin-top: 4px;
+          color: #10b981;
+          font-size: 12px;
+        }
+        
+        .profile-autofill-note small::before {
+          content: "✓ ";
+          font-weight: bold;
+        }
+        
         .readonly-config {
           background: rgba(30, 41, 59, 0.8);
           padding: 8px 12px;
@@ -2231,12 +2485,6 @@ Thank you!`;
           font-size: 0.9rem;
         }
         
-        .config-value-readonly {
-          color: #60a5fa;
-          font-weight: 500;
-          font-size: 0.95rem;
-        }
-        
         .standard-product-brand-name {
           color: #10b981;
           font-weight: bold;
@@ -2255,26 +2503,6 @@ Thank you!`;
           display: flex;
           align-items: center;
           gap: 8px;
-        }
-
-        .profile-autofill-note {
-          margin-top: 4px;
-          color: #10b981;
-          font-size: 12px;
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        }
-
-        .profile-autofill-note small {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        }
-
-        .profile-autofill-note small::before {
-          content: "✓";
-          font-weight: bold;
         }
       `}</style>
     </>

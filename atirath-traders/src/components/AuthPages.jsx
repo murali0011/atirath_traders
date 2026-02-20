@@ -1,3 +1,4 @@
+// AuthPage.jsx
 import React, { useState } from 'react';
 import { X, Eye, EyeOff } from 'lucide-react';
 import { 
@@ -429,7 +430,7 @@ const SignIn = ({ onNavigate, onSignIn, onClose, preFilledEmail = '' }) => {
   );
 };
 
-// SignUp component with User/Vendor options
+// SignUp component with User/Vendor options - UPDATED with text input for country
 const SignUp = ({ onNavigate, onSignUp, onClose }) => {
   const [userType, setUserType] = useState('user');
   const [formData, setFormData] = useState({
@@ -437,7 +438,7 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
     email: '',
     countryCode: '+91',
     phone: '',
-    country: 'India',
+    country: '',
     state: '',
     city: '',
     pincode: '',
@@ -526,7 +527,7 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
       setFormData(prev => ({
         ...prev,
         countryCode: value,
-        country: selectedCountry ? selectedCountry.name : 'India',
+        // Don't auto-set country name anymore - user will type it
         phone: ''
       }));
     } else if (name === 'gstNo') {
@@ -618,16 +619,16 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
       alert('Please enter your email address');
       return;
     }
+    if (!formData.country.trim()) {
+      alert('Please enter your country');
+      return;
+    }
     if (!formData.state.trim()) {
       alert('Please enter your state/province');
       return;
     }
     if (!formData.city.trim()) {
       alert('Please enter your city/town');
-      return;
-    }
-    if (!formData.country.trim()) {
-      alert('Please select your country');
       return;
     }
 
@@ -1275,22 +1276,21 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
                 </div>
               )}
               
-              {/* Country Selection */}
+              {/* Country Selection - UPDATED: Changed from dropdown to text input */}
               <div className="form-group">
                 <label className="form-label fw-semibold">Country <span className="text-danger">*</span></label>
-                <select
+                <input
+                  type="text"
                   name="country"
                   value={formData.country}
                   onChange={handleChange}
                   className="form-control search-bar-transparent"
+                  placeholder="Enter your country (e.g., India, USA, UAE)"
                   required
-                >
-                  <option value="">Select Country</option>
-                  {countries.map((country) => (
-                    <option key={country.name} value={country.name}>{country.flag} {country.name}</option>
-                  ))}
-                  <option value="Other">🌍 Other</option>
-                </select>
+                />
+                <small className="text-sm opacity-80 d-block mt-1">
+                  Enter your country name (e.g., India, United States, UAE)
+                </small>
               </div>
               
               {/* State */}

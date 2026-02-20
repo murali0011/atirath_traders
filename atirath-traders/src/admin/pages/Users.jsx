@@ -43,29 +43,39 @@ export default function Users() {
     try {
       console.log('🔍 Loading users and vendors from separate collections...');
       
-      // OPTION 1: Use getAllAccounts which combines users + vendors
-      const allAccounts = await getAllAccounts();
-      console.log(`✅ Loaded ${allAccounts.length} total accounts from Firebase`, allAccounts);
+      // Load both users and vendors separately for better debugging
+      const [usersList, vendorsList] = await Promise.all([
+        getAllUsers(),
+        getAllVendors()
+      ]);
       
-      // OPTION 2: If you want separate control, use both functions
-      // const [usersList, vendorsList] = await Promise.all([
-      //   getAllUsers(),
-      //   getAllVendors()
-      // ]);
-      // const allAccounts = [...usersList, ...vendorsList];
-      // console.log(`✅ Loaded ${usersList.length} users + ${vendorsList.length} vendors = ${allAccounts.length} total accounts`);
+      console.log('📊 Raw Users Data:', usersList);
+      console.log('📊 Raw Vendors Data:', vendorsList);
       
-      // Check if data is coming through properly
-      if (allAccounts.length > 0) {
-        console.log('Sample account data:', allAccounts[0]);
-      }
+      // Ensure each account has proper userType
+      const processedUsers = usersList.map(user => ({
+        ...user,
+        userType: 'user',
+        accountDisplay: '👤 User'
+      }));
+      
+      const processedVendors = vendorsList.map(vendor => ({
+        ...vendor,
+        userType: 'vendor',
+        accountDisplay: vendor.vendorApproved ? '✅ Approved Vendor' : 
+                        vendor.vendorStatus === 'pending' ? '⏳ Pending Vendor' : 
+                        vendor.vendorStatus === 'rejected' ? '❌ Rejected Vendor' : '🏢 Vendor'
+      }));
+      
+      const allAccounts = [...processedUsers, ...processedVendors];
+      console.log(`✅ Total accounts: ${allAccounts.length}`);
+      console.log('Sample processed account:', allAccounts[0]);
       
       setUsers(allAccounts);
       
-      // Separate regular users and vendors for stats
+      // Calculate stats
       const regularUsers = allAccounts.filter(account => account.userType === 'user');
       const vendorUsers = allAccounts.filter(account => account.userType === 'vendor');
-      console.log(`📊 Stats: ${regularUsers.length} users, ${vendorUsers.length} vendors`);
       
       calculateStats(regularUsers, vendorUsers);
 
@@ -97,8 +107,12 @@ export default function Users() {
       return lastLogin >= thirtyDaysAgo;
     });
 
-    const pendingVendors = vendorUsers.filter(vendor => vendor.vendorStatus === 'pending');
-    const approvedVendors = vendorUsers.filter(vendor => vendor.vendorStatus === 'approved' || vendor.vendorApproved === true);
+    const pendingVendors = vendorUsers.filter(vendor => 
+      vendor.vendorStatus === 'pending' || vendor.vendorApproved === false
+    );
+    const approvedVendors = vendorUsers.filter(vendor => 
+      vendor.vendorStatus === 'approved' || vendor.vendorApproved === true
+    );
 
     setStats({
       total: allAccounts.length,
@@ -161,29 +175,25 @@ export default function Users() {
     return flags[country] || '🌍';
   };
 
-  const getVendorStatusBadge = (user) => {
-    if (!user) return <span className="user-type-badge unknown">❓ Unknown</span>;
+  const getAccountTypeBadge = (user) => {
+    if (!user) return <span className="account-badge unknown">❓ Unknown</span>;
     
     if (user.userType === 'user') {
-      return <span className="user-type-badge user">👤 User</span>;
+      return <span className="account-badge user-badge">👤 User</span>;
     }
     
-    if (user.userType !== 'vendor') {
-      return <span className="user-type-badge unknown">❓ Unknown</span>;
+    if (user.userType === 'vendor') {
+      if (user.vendorApproved || user.vendorStatus === 'approved') {
+        return <span className="account-badge vendor-approved">✅ Vendor</span>;
+      } else if (user.vendorStatus === 'pending') {
+        return <span className="account-badge vendor-pending">⏳ Vendor</span>;
+      } else if (user.vendorStatus === 'rejected') {
+        return <span className="account-badge vendor-rejected">❌ Vendor</span>;
+      }
+      return <span className="account-badge vendor-pending">🏢 Vendor</span>;
     }
     
-    const status = user.vendorStatus || 'pending';
-    const isApproved = user.vendorApproved || false;
-    
-    if (isApproved || status === 'approved') {
-      return <span className="vendor-status-badge approved">✅ Approved Vendor</span>;
-    } else if (status === 'pending') {
-      return <span className="vendor-status-badge pending">⏳ Pending Approval</span>;
-    } else if (status === 'rejected') {
-      return <span className="vendor-status-badge rejected">❌ Rejected</span>;
-    }
-    
-    return <span className="vendor-status-badge pending">🏢 Vendor</span>;
+    return <span className="account-badge unknown">❓ Unknown</span>;
   };
 
   const getFilteredUsers = () => {
@@ -257,10 +267,8 @@ export default function Users() {
       
       if (success) {
         alert('✅ Vendor approved successfully!');
-        // Refresh the data
         await loadUsersAndVendors();
         
-        // If modal is open, update selected user
         if (selectedUser && selectedUser.vendorKey === vendorKey) {
           const updatedUser = { ...selectedUser, vendorStatus: 'approved', vendorApproved: true };
           setSelectedUser(updatedUser);
@@ -293,10 +301,8 @@ export default function Users() {
       
       if (success) {
         alert('✅ Vendor rejected successfully!');
-        // Refresh the data
         await loadUsersAndVendors();
         
-        // If modal is open, update selected user
         if (selectedUser && selectedUser.vendorKey === vendorKey) {
           const updatedUser = { ...selectedUser, vendorStatus: 'rejected', vendorApproved: false };
           setSelectedUser(updatedUser);
@@ -314,30 +320,17 @@ export default function Users() {
     try {
       console.log('🧪 Testing Firebase connection...');
       
-      // Test users collection
       const usersTest = await getAllUsers();
       console.log('📊 Users collection test:', usersTest.length, 'users found');
-      if (usersTest.length > 0) {
-        console.log('Sample user:', usersTest[0]);
-      }
       
-      // Test vendors collection
       const vendorsTest = await getAllVendors();
       console.log('📊 Vendors collection test:', vendorsTest.length, 'vendors found');
-      if (vendorsTest.length > 0) {
-        console.log('Sample vendor:', vendorsTest[0]);
-      }
       
-      // Test combined accounts
-      const accountsTest = await getAllAccounts();
-      console.log('📊 All accounts test:', accountsTest.length, 'total accounts found');
-      
-      alert(`✅ Firebase Connection Test Successful!\nUsers: ${usersTest.length}\nVendors: ${vendorsTest.length}\nTotal: ${accountsTest.length}`);
+      alert(`✅ Firebase Connection Test Successful!\nUsers: ${usersTest.length}\nVendors: ${vendorsTest.length}`);
       
       return {
         users: usersTest,
-        vendors: vendorsTest,
-        accounts: accountsTest
+        vendors: vendorsTest
       };
     } catch (error) {
       console.error('❌ Firebase connection test failed:', error);
@@ -463,8 +456,6 @@ export default function Users() {
           >
             <FiDownload /> Export CSV
           </button>
-          
-          
         </div>
         <div className="toolbar-right">
           <button
@@ -527,14 +518,13 @@ export default function Users() {
                 {getFilteredUsers().map((user) => (
                   <tr key={user.userKey || user.vendorKey || user.uid || Math.random()} className="user-row">
                     <td className="account-type-cell">
-                      {getVendorStatusBadge(user)}
+                      {getAccountTypeBadge(user)}
                     </td>
                     <td>
                       <div className="user-info">
                         <div className="user-name">
                           <FiUser size={12} />
                           {user.name || "Unnamed User"}
-                          {user.userType === 'vendor' && <span className="vendor-indicator">🏢</span>}
                         </div>
                         <div className="user-email">
                           <FiMail size={12} />
@@ -570,7 +560,11 @@ export default function Users() {
                     </td>
                     <td>
                       {user.userType === 'vendor' ? (
-                        <div className={`vendor-status ${user.vendorStatus || 'pending'} ${user.vendorApproved ? 'approved' : ''}`}>
+                        <div className={`vendor-status ${
+                          user.vendorApproved ? 'approved' : 
+                          user.vendorStatus === 'pending' ? 'pending' :
+                          user.vendorStatus === 'rejected' ? 'rejected' : 'pending'
+                        }`}>
                           {user.vendorApproved ? (
                             <><FiCheckCircle /> Approved</>
                           ) : user.vendorStatus === 'pending' ? (
@@ -578,7 +572,7 @@ export default function Users() {
                           ) : user.vendorStatus === 'rejected' ? (
                             <><FiAlertCircle /> Rejected</>
                           ) : (
-                            <><FiAlertCircle /> {user.vendorStatus || 'Pending'}</>
+                            <><FiClock /> Pending</>
                           )}
                         </div>
                       ) : (
@@ -604,7 +598,8 @@ export default function Users() {
                         >
                           <FiEye /> View
                         </button>
-                        {user.userType === 'vendor' && user.vendorStatus === 'pending' && (
+                        {user.userType === 'vendor' && 
+                         (user.vendorStatus === 'pending' || !user.vendorApproved) && (
                           <>
                             <button
                               className="approve-btn"
@@ -639,7 +634,7 @@ export default function Users() {
             <div className="modal-header">
               <h2 className="modal-title">
                 {selectedUser.userType === 'vendor' ? 'Vendor Details' : 'User Details'}
-                {getVendorStatusBadge(selectedUser)}
+                {getAccountTypeBadge(selectedUser)}
               </h2>
               <button
                 className="modal-close-blue"
@@ -729,11 +724,15 @@ export default function Users() {
                       <div className="detail-row">
                         <span className="detail-label">Vendor Status:</span>
                         <span className="detail-value">
-                          <span className={`vendor-status-indicator ${selectedUser.vendorStatus || 'pending'}`}>
+                          <span className={`vendor-status-indicator ${
+                            selectedUser.vendorApproved ? 'approved' : 
+                            selectedUser.vendorStatus === 'pending' ? 'pending' : 
+                            selectedUser.vendorStatus === 'rejected' ? 'rejected' : 'pending'
+                          }`}>
                             {selectedUser.vendorApproved ? '✅ Approved' : 
                              selectedUser.vendorStatus === 'pending' ? '⏳ Pending Approval' : 
                              selectedUser.vendorStatus === 'rejected' ? '❌ Rejected' : 
-                             selectedUser.vendorStatus || 'Pending'}
+                             '⏳ Pending'}
                           </span>
                         </span>
                       </div>
@@ -778,7 +777,8 @@ export default function Users() {
             </div>
 
             <div className="modal-footer">
-              {selectedUser.userType === 'vendor' && selectedUser.vendorStatus === 'pending' && (
+              {selectedUser.userType === 'vendor' && 
+               (selectedUser.vendorStatus === 'pending' || !selectedUser.vendorApproved) && (
                 <div className="vendor-actions">
                   <button
                     className="btn-approve"
