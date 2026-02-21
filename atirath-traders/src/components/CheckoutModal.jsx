@@ -14,7 +14,7 @@ import {
   getUnitType
 } from "../data/ProductData";
 import { ShoppingBag, Package, Trash2, Plus, Minus, X, Check } from 'lucide-react';
-import "../styles/form.css";
+import "../styles/form.css"; // Import the CSS file
 
 const CheckoutModal = ({ isOpen, onClose, products, profile, onOrderSubmitted }) => {
   // State declarations
@@ -1689,13 +1689,7 @@ Thank you!`;
                                 <span className="standard-product-brand">{cartProduct.companyName}</span>
                                 
                                 {cartProduct.brandName && cartProduct.brandName !== 'General' && (
-                                  <span className="standard-product-brand-name" style={{ 
-                                    color: '#10b981', 
-                                    fontWeight: 'bold',
-                                    display: 'block',
-                                    marginTop: '4px',
-                                    fontSize: '1rem'
-                                  }}>
+                                  <span className="standard-product-brand-name">
                                     Brand: {cartProduct.brandName}
                                   </span>
                                 )}
@@ -1763,7 +1757,7 @@ Thank you!`;
                                 {cartProduct.brandName && cartProduct.brandName !== 'General' && (
                                   <div className="meta-item">
                                     <span className="meta-label">Brand:</span>
-                                    <span className="meta-value" style={{ color: '#10b981' }}>{cartProduct.brandName}</span>
+                                    <span className="meta-value">{cartProduct.brandName}</span>
                                   </div>
                                 )}
                                 <div className="meta-item">
@@ -1936,18 +1930,7 @@ Thank you!`;
                     </div>
 
                     {hasAutoFilled && (
-                      <div className="auto-fill-confirmation" style={{
-                        background: 'rgba(16, 185, 129, 0.1)',
-                        border: '1px solid #10b981',
-                        borderRadius: '8px',
-                        padding: '12px',
-                        marginTop: '16px',
-                        color: '#10b981',
-                        fontSize: '14px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                      }}>
+                      <div className="auto-fill-confirmation">
                         <Check size={18} />
                         <span>Profile data has been auto-filled successfully!</span>
                       </div>
@@ -1972,7 +1955,7 @@ Thank you!`;
                         <option value="ocean">🚢 Ocean Freight</option>
                       </select>
                       {!showRoad && country && (
-                        <small className="transport-note" style={{ color: '#f59e0b', display: 'block', marginTop: '4px' }}>
+                        <small className="transport-note">
                           ⚡ Road transport is only available for India. Showing international options.
                         </small>
                       )}
@@ -2388,123 +2371,6 @@ Thank you!`;
       </div>
 
       <ThankYouPopup isOpen={showThankYou} onClose={() => setShowThankYou(false)} />
-
-      <style>{`
-        .transport-location-group {
-          display: flex;
-          gap: 10px;
-          flex-wrap: wrap;
-        }
-        
-        .transport-location-group input {
-          flex: 1;
-          min-width: 120px;
-        }
-        
-        .airport-group {
-          display: flex;
-          gap: 10px;
-        }
-        
-        .airport-group input {
-          flex: 1;
-        }
-        
-        .transport-note {
-          font-size: 12px;
-          margin-top: 4px;
-        }
-        
-        .transport-price-info {
-          margin-top: 8px;
-          padding: 8px;
-          background: rgba(64, 150, 226, 0.1);
-          border-radius: 4px;
-          color: #4096e2ff;
-          font-weight: 500;
-        }
-        
-        .transport-summary {
-          border-bottom: 1px dashed rgba(255,255,255,0.1);
-          padding-bottom: 8px;
-          margin-bottom: 8px;
-        }
-        
-        .profile-autofill-note {
-          margin-top: 4px;
-          color: #10b981;
-          font-size: 12px;
-        }
-        
-        .profile-autofill-note small::before {
-          content: "✓ ";
-          font-weight: bold;
-        }
-        
-        .readonly-config {
-          background: rgba(30, 41, 59, 0.8);
-          padding: 8px 12px;
-          border-radius: 6px;
-          border-left: 3px solid #4096e2ff;
-          margin-bottom: 8px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-        
-        .config-value-readonly {
-          color: #60a5fa;
-          font-weight: 500;
-          background: rgba(64, 150, 226, 0.1);
-          padding: 4px 10px;
-          border-radius: 4px;
-          display: inline-block;
-        }
-        
-        .standard-config-display {
-          margin: 10px 0;
-          background: rgba(15, 23, 42, 0.5);
-          border-radius: 8px;
-          padding: 10px;
-          border: 1px solid rgba(64, 150, 226, 0.2);
-        }
-        
-        .config-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 6px;
-        }
-        
-        .config-row:last-child {
-          margin-bottom: 0;
-        }
-        
-        .config-label {
-          color: #94a3b8;
-          font-size: 0.9rem;
-        }
-        
-        .standard-product-brand-name {
-          color: #10b981;
-          font-weight: bold;
-          font-size: 1rem;
-          margin-top: 4px;
-        }
-
-        .auto-fill-confirmation {
-          background: rgba(16, 185, 129, 0.1);
-          border: 1px solid #10b981;
-          border-radius: 8px;
-          padding: 12px;
-          margin-top: 16px;
-          color: #10b981;
-          font-size: 14px;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-      `}</style>
     </>
   );
 };

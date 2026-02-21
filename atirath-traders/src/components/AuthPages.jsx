@@ -106,8 +106,8 @@ const SignIn = ({ onNavigate, onSignIn, onClose, preFilledEmail = '' }) => {
         ...(userDB?.userType === 'vendor' && {
           gstNo: userDB?.gstNo || '',
           registeredBy: userDB?.registeredBy || '',
-          vendorStatus: userDB?.vendorStatus || 'pending',
-          vendorApproved: userDB?.vendorApproved || false,
+          vendorStatus: userDB?.vendorStatus || 'active',
+          vendorApproved: userDB?.vendorApproved || true,
           vendorKey: userDB?.vendorKey || '',
           vendorNumber: userDB?.vendorNumber || null
         })
@@ -692,10 +692,10 @@ const SignUp = ({ onNavigate, onSignUp, onClose }) => {
         ...(userType === 'vendor' && {
           gstNo: formData.gstNo.toUpperCase(),
           registeredBy: formData.registeredBy,
-          vendorStatus: 'pending',
-          vendorApproved: false,
-          approvedAt: null,
-          approvedBy: null
+          vendorStatus: 'active', // Changed from 'pending' to 'active'
+          vendorApproved: true,    // Changed from false to true
+          approvedAt: new Date().toISOString(),
+          approvedBy: 'system'
         })
       };
 

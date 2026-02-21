@@ -14,7 +14,7 @@ import {
   getUnitType
 } from "../data/ProductData";
 import { ShoppingBag, Package, Trash2, Plus, Minus, X, Star, Check } from 'lucide-react';
-import "../styles/form.css";
+import "../styles/form.css"; // Import the CSS file
 
 const SingleProductBuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
   // State declarations
@@ -1688,7 +1688,7 @@ Thank you!`;
                         <option value="ocean">🚢 Ocean Freight</option>
                       </select>
                       {!showRoad && country && (
-                        <small className="transport-note" style={{ color: '#f59e0b', display: 'block', marginTop: '4px' }}>
+                        <small className="transport-note">
                           ⚡ Road transport is only available for India. Showing international options.
                         </small>
                       )}
@@ -2121,59 +2121,6 @@ Thank you!`;
       </div>
 
       <ThankYouPopup isOpen={showThankYou} onClose={() => setShowThankYou(false)} />
-
-      <style>{`
-        .transport-location-group {
-          display: flex;
-          gap: 10px;
-          flex-wrap: wrap;
-        }
-        
-        .transport-location-group input {
-          flex: 1;
-          min-width: 120px;
-        }
-        
-        .airport-group {
-          display: flex;
-          gap: 10px;
-        }
-        
-        .airport-group input {
-          flex: 1;
-        }
-        
-        .transport-note {
-          font-size: 12px;
-          margin-top: 4px;
-        }
-        
-        .transport-price-info {
-          margin-top: 8px;
-          padding: 8px;
-          background: rgba(64, 150, 226, 0.1);
-          border-radius: 4px;
-          color: #4096e2ff;
-          font-weight: 500;
-        }
-        
-        .transport-summary {
-          border-bottom: 1px dashed rgba(255,255,255,0.1);
-          padding-bottom: 8px;
-          margin-bottom: 8px;
-        }
-        
-        .profile-autofill-note {
-          margin-top: 4px;
-          color: #10b981;
-          font-size: 12px;
-        }
-        
-        .profile-autofill-note small::before {
-          content: "✓ ";
-          font-weight: bold;
-        }
-      `}</style>
     </>
   );
 };

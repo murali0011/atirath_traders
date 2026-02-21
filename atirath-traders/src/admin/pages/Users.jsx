@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { getAllAccounts, getAllUsers, getAllVendors, updateVendorStatus } from "../../firebase";
+import { getAllUsers, getAllVendors } from "../../firebase";
 import {
   FiUser,
   FiMail,
@@ -14,7 +14,6 @@ import {
   FiBriefcase,
   FiCheckCircle,
   FiAlertCircle,
-  FiClock,
   FiUsers
 } from "react-icons/fi";
 
@@ -27,8 +26,7 @@ export default function Users() {
     today: 0,
     active: 0,
     vendors: 0,
-    pendingVendors: 0,
-    approvedVendors: 0
+    activeVendors: 0
   });
   const [activeTab, setActiveTab] = useState('all'); // 'all', 'users', 'vendors'
   const [error, setError] = useState(null);
@@ -62,14 +60,11 @@ export default function Users() {
       const processedVendors = vendorsList.map(vendor => ({
         ...vendor,
         userType: 'vendor',
-        accountDisplay: vendor.vendorApproved ? '✅ Approved Vendor' : 
-                        vendor.vendorStatus === 'pending' ? '⏳ Pending Vendor' : 
-                        vendor.vendorStatus === 'rejected' ? '❌ Rejected Vendor' : '🏢 Vendor'
+        accountDisplay: '🏢 Active Vendor'
       }));
       
       const allAccounts = [...processedUsers, ...processedVendors];
       console.log(`✅ Total accounts: ${allAccounts.length}`);
-      console.log('Sample processed account:', allAccounts[0]);
       
       setUsers(allAccounts);
       
@@ -107,11 +102,8 @@ export default function Users() {
       return lastLogin >= thirtyDaysAgo;
     });
 
-    const pendingVendors = vendorUsers.filter(vendor => 
-      vendor.vendorStatus === 'pending' || vendor.vendorApproved === false
-    );
-    const approvedVendors = vendorUsers.filter(vendor => 
-      vendor.vendorStatus === 'approved' || vendor.vendorApproved === true
+    const activeVendors = vendorUsers.filter(vendor => 
+      vendor.vendorStatus === 'active' || vendor.vendorApproved === true
     );
 
     setStats({
@@ -119,8 +111,7 @@ export default function Users() {
       today: todayUsers.length,
       active: activeUsers.length,
       vendors: vendorUsers.length,
-      pendingVendors: pendingVendors.length,
-      approvedVendors: approvedVendors.length
+      activeVendors: activeVendors.length
     });
   };
 
@@ -183,14 +174,7 @@ export default function Users() {
     }
     
     if (user.userType === 'vendor') {
-      if (user.vendorApproved || user.vendorStatus === 'approved') {
-        return <span className="account-badge vendor-approved">✅ Vendor</span>;
-      } else if (user.vendorStatus === 'pending') {
-        return <span className="account-badge vendor-pending">⏳ Vendor</span>;
-      } else if (user.vendorStatus === 'rejected') {
-        return <span className="account-badge vendor-rejected">❌ Vendor</span>;
-      }
-      return <span className="account-badge vendor-pending">🏢 Vendor</span>;
+      return <span className="account-badge vendor-active">🏢 Active Vendor</span>;
     }
     
     return <span className="account-badge unknown">❓ Unknown</span>;
@@ -230,7 +214,7 @@ export default function Users() {
         user.city || '',
         user.pincode || '',
         getUserStatus(user),
-        user.userType === 'vendor' ? (user.vendorStatus || 'pending') : 'N/A',
+        user.userType === 'vendor' ? 'Active' : 'N/A',
         user.userType === 'vendor' ? (user.gstNo || '') : '',
         user.userType === 'vendor' ? (user.registeredBy || '') : '',
         formatDate(user.createdAt),
@@ -249,94 +233,6 @@ export default function Users() {
     document.body.removeChild(link);
 
     alert(`✅ Exported ${filteredUsers.length} ${activeTab} to CSV file!`);
-  };
-
-  const handleApproveVendor = async (vendorKey) => {
-    if (!vendorKey || !window.confirm('Are you sure you want to approve this vendor?')) return;
-    
-    try {
-      console.log('✅ Approving vendor with key:', vendorKey);
-      
-      const statusData = {
-        status: 'approved',
-        approvedBy: 'admin',
-        reason: 'Approved by administrator'
-      };
-      
-      const success = await updateVendorStatus(vendorKey, statusData);
-      
-      if (success) {
-        alert('✅ Vendor approved successfully!');
-        await loadUsersAndVendors();
-        
-        if (selectedUser && selectedUser.vendorKey === vendorKey) {
-          const updatedUser = { ...selectedUser, vendorStatus: 'approved', vendorApproved: true };
-          setSelectedUser(updatedUser);
-        }
-      } else {
-        alert('❌ Failed to approve vendor');
-      }
-    } catch (error) {
-      console.error('Error approving vendor:', error);
-      alert('❌ Error approving vendor: ' + error.message);
-    }
-  };
-
-  const handleRejectVendor = async (vendorKey) => {
-    if (!vendorKey) return;
-    
-    const reason = prompt('Please enter reason for rejection:');
-    if (!reason) return;
-    
-    try {
-      console.log('❌ Rejecting vendor with key:', vendorKey);
-      
-      const statusData = {
-        status: 'rejected',
-        approvedBy: null,
-        reason: reason
-      };
-      
-      const success = await updateVendorStatus(vendorKey, statusData);
-      
-      if (success) {
-        alert('✅ Vendor rejected successfully!');
-        await loadUsersAndVendors();
-        
-        if (selectedUser && selectedUser.vendorKey === vendorKey) {
-          const updatedUser = { ...selectedUser, vendorStatus: 'rejected', vendorApproved: false };
-          setSelectedUser(updatedUser);
-        }
-      } else {
-        alert('❌ Failed to reject vendor');
-      }
-    } catch (error) {
-      console.error('Error rejecting vendor:', error);
-      alert('❌ Error rejecting vendor: ' + error.message);
-    }
-  };
-
-  const testFirebaseConnection = async () => {
-    try {
-      console.log('🧪 Testing Firebase connection...');
-      
-      const usersTest = await getAllUsers();
-      console.log('📊 Users collection test:', usersTest.length, 'users found');
-      
-      const vendorsTest = await getAllVendors();
-      console.log('📊 Vendors collection test:', vendorsTest.length, 'vendors found');
-      
-      alert(`✅ Firebase Connection Test Successful!\nUsers: ${usersTest.length}\nVendors: ${vendorsTest.length}`);
-      
-      return {
-        users: usersTest,
-        vendors: vendorsTest
-      };
-    } catch (error) {
-      console.error('❌ Firebase connection test failed:', error);
-      alert('❌ Firebase connection failed: ' + error.message);
-      throw error;
-    }
   };
 
   return (
@@ -407,7 +303,7 @@ export default function Users() {
             <h3>{stats.vendors}</h3>
             <p>Vendors</p>
             <div className="stat-trend">
-              {stats.approvedVendors} approved • {stats.pendingVendors} pending
+              {stats.activeVendors} active vendors
             </div>
           </div>
         </div>
@@ -560,20 +456,8 @@ export default function Users() {
                     </td>
                     <td>
                       {user.userType === 'vendor' ? (
-                        <div className={`vendor-status ${
-                          user.vendorApproved ? 'approved' : 
-                          user.vendorStatus === 'pending' ? 'pending' :
-                          user.vendorStatus === 'rejected' ? 'rejected' : 'pending'
-                        }`}>
-                          {user.vendorApproved ? (
-                            <><FiCheckCircle /> Approved</>
-                          ) : user.vendorStatus === 'pending' ? (
-                            <><FiClock /> Pending</>
-                          ) : user.vendorStatus === 'rejected' ? (
-                            <><FiAlertCircle /> Rejected</>
-                          ) : (
-                            <><FiClock /> Pending</>
-                          )}
+                        <div className="vendor-status active">
+                          <FiCheckCircle /> Active
                         </div>
                       ) : (
                         <div className="vendor-status not-vendor">
@@ -598,25 +482,6 @@ export default function Users() {
                         >
                           <FiEye /> View
                         </button>
-                        {user.userType === 'vendor' && 
-                         (user.vendorStatus === 'pending' || !user.vendorApproved) && (
-                          <>
-                            <button
-                              className="approve-btn"
-                              onClick={() => handleApproveVendor(user.vendorKey || user.uid)}
-                              title="Approve Vendor"
-                            >
-                              <FiCheckCircle /> Approve
-                            </button>
-                            <button
-                              className="reject-btn"
-                              onClick={() => handleRejectVendor(user.vendorKey || user.uid)}
-                              title="Reject Vendor"
-                            >
-                              <FiX /> Reject
-                            </button>
-                          </>
-                        )}
                       </div>
                     </td>
                   </tr>
@@ -724,15 +589,8 @@ export default function Users() {
                       <div className="detail-row">
                         <span className="detail-label">Vendor Status:</span>
                         <span className="detail-value">
-                          <span className={`vendor-status-indicator ${
-                            selectedUser.vendorApproved ? 'approved' : 
-                            selectedUser.vendorStatus === 'pending' ? 'pending' : 
-                            selectedUser.vendorStatus === 'rejected' ? 'rejected' : 'pending'
-                          }`}>
-                            {selectedUser.vendorApproved ? '✅ Approved' : 
-                             selectedUser.vendorStatus === 'pending' ? '⏳ Pending Approval' : 
-                             selectedUser.vendorStatus === 'rejected' ? '❌ Rejected' : 
-                             '⏳ Pending'}
+                          <span className="vendor-status-indicator approved">
+                            ✅ Active
                           </span>
                         </span>
                       </div>
@@ -777,29 +635,6 @@ export default function Users() {
             </div>
 
             <div className="modal-footer">
-              {selectedUser.userType === 'vendor' && 
-               (selectedUser.vendorStatus === 'pending' || !selectedUser.vendorApproved) && (
-                <div className="vendor-actions">
-                  <button
-                    className="btn-approve"
-                    onClick={() => {
-                      handleApproveVendor(selectedUser.vendorKey || selectedUser.uid);
-                      setSelectedUser(null);
-                    }}
-                  >
-                    <FiCheckCircle /> Approve Vendor
-                  </button>
-                  <button
-                    className="btn-reject"
-                    onClick={() => {
-                      handleRejectVendor(selectedUser.vendorKey || selectedUser.uid);
-                      setSelectedUser(null);
-                    }}
-                  >
-                    <FiX /> Reject Vendor
-                  </button>
-                </div>
-              )}
               <button
                 className="btn-secondary-blue"
                 onClick={() => setSelectedUser(null)}

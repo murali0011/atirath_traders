@@ -43,7 +43,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
   const [productSearchQuery, setProductSearchQuery] = useState('');
   const [cartStatus, setCartStatus] = useState({});
   const [showCartSuccess, setShowCartSuccess] = useState(false);
-  const [addedProduct, setAddedProduct] = useState(null); // 🔥 FIXED: Store full product object instead of just name
+  const [addedProduct, setAddedProduct] = useState(null);
 
   // Check mobile view
   useEffect(() => {
@@ -481,7 +481,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
   };
 
   // ============================================
-  // GET AVAILABLE GRADES FOR RICE - EXACT FORMAT FROM IMAGE
+  // GET AVAILABLE GRADES FOR RICE
   // ============================================
   const getRiceGrades = (product) => {
     if (product.grades && Array.isArray(product.grades) && product.grades.length > 0) {
@@ -501,7 +501,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
   };
 
   // ============================================
-  // GET GRADES FOR DISPLAY - EXACT FORMAT FROM FIRST IMAGE
+  // GET GRADES FOR DISPLAY
   // ============================================
   const getGradesDisplay = (product) => {
     if (product.grades && Array.isArray(product.grades) && product.grades.length > 0) {
@@ -519,7 +519,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
   };
 
   // ============================================
-  // GET PACKAGING DISPLAY - EXACT FORMAT FROM SECOND IMAGE
+  // GET PACKAGING DISPLAY
   // ============================================
   const getPackagingDisplay = (product) => {
     if (product.packaging) {
@@ -549,9 +549,29 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
   };
 
   // ============================================
-  // GET PACKING OPTIONS FOR PRODUCT
+  // 🔥 UPDATED: GET PACKING OPTIONS FOR PRODUCT
   // ============================================
   const getPackingOptions = (product) => {
+    // Check if it's a rice product
+    const isRice = isRiceProduct(product);
+    
+    if (isRice) {
+      // ✅ SPECIFIC PACKING OPTIONS FOR RICE AS REQUESTED
+      return [
+        { value: "PP Bags", label: "PP Bags" },
+        { value: "Non-Woven Bags", label: "Non-Woven Bags" },
+        { value: "Jute Bags", label: "Jute Bags" },
+        { value: "BOPP Bags", label: "BOPP Bags" },
+        { value: "LDPE Bags", label: "LDPE Bags" },
+        { value: "HDPE Bags", label: "HDPE Bags" },
+        { value: "Vacuum Packed", label: "Vacuum Packed" },
+        { value: "Paper Bags", label: "Paper Bags" },
+        { value: "Bulk Packaging", label: "Bulk Packaging" },
+        { value: "Custom Packaging", label: "Custom Packaging" }
+      ];
+    }
+    
+    // For non-rice products, use product-specific or default options
     if (product.pack_type) {
       return [
         { value: product.pack_type, label: product.pack_type }
@@ -582,7 +602,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
       }
     }
     
-    // Default options
+    // Default options for non-rice products
     return [
       { value: "Standard Pack", label: "Standard Pack" },
       { value: "Bulk Pack", label: "Bulk Pack" },
@@ -824,7 +844,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
   };
 
   // ============================================
-  // 🔥 FIXED: HANDLE ADD TO CART WITH CONFIGURATION
+  // HANDLE ADD TO CART WITH CONFIGURATION
   // ============================================
   const handleAddToCartClick = (product) => {
     console.log("📦 Opening add to cart config for product:", product);
@@ -876,7 +896,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
   };
 
   // ============================================
-  // 🔥 FIXED: HANDLE ADD TO CART AFTER CONFIGURATION
+  // HANDLE ADD TO CART AFTER CONFIGURATION
   // ============================================
   const handleAddToCartWithConfig = (productWithConfig) => {
     console.log("📦 ProductPage: Adding product to cart with configuration:", productWithConfig);
@@ -913,7 +933,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
       // Quantity
       quantity: 1,
       
-      // 🔥 SELECTED CONFIGURATION - WITH DISPLAY NAMES
+      // SELECTED CONFIGURATION - WITH DISPLAY NAMES
       selectedGrade: productWithConfig.selectedGrade,
       selectedGradePrice: productWithConfig.selectedGradePrice,
       selectedGradeDisplay: productWithConfig.selectedGradeDisplay || productWithConfig.selectedGrade,
@@ -960,7 +980,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
     // Add to cart
     addToCart(enhancedProduct);
     
-    // 🔥 FIXED: Store the entire product object for success message
+    // Store the entire product object for success message
     setAddedProduct(enhancedProduct);
     setShowCartSuccess(true);
     
@@ -1240,9 +1260,17 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
 
     return (
       <div className="products-full-screen mt-4">
-        {/* Products Header */}
-        <div className="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
-          <div>
+        {/* Products Header - FIXED: Side by side layout with proper wrapping */}
+        <div className="products-header" style={{
+          display: 'flex',
+          flexDirection: isMobile ? 'column' : 'row',
+          justifyContent: 'space-between',
+          alignItems: isMobile ? 'stretch' : 'center',
+          marginBottom: '24px',
+          gap: '16px'
+        }}>
+          {/* Left side - Title */}
+          <div style={{ flex: '1 1 auto' }}>
             {selectedBrand ? (
               <h3 className="h4 mb-1" style={{ color: '#ffffff' }}>{selectedBrand.name} Products</h3>
             ) : selectedCompany ? (
@@ -1262,11 +1290,19 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
             )}
           </div>
           
-          <div className="d-flex align-items-center gap-3">
+          {/* Right side - Actions: Checkout button and Currency dropdown SIDE BY SIDE */}
+          <div className="products-actions" style={{
+            display: 'flex',
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: '12px',
+            flexWrap: 'wrap',
+            justifyContent: isMobile ? 'flex-start' : 'flex-end'
+          }}>
             {/* Cart Checkout Button */}
             {cartTotalItemsCount > 0 && (
               <button
-                className="btn btn-success btn-sm d-flex align-items-center gap-2"
+                className="btn btn-success d-flex align-items-center gap-2"
                 onClick={handleCartCheckout}
                 style={{
                   background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
@@ -1275,16 +1311,21 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
                   padding: '8px 16px',
                   borderRadius: '8px',
                   fontWeight: '600',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  fontSize: '0.95rem',
+                  whiteSpace: 'nowrap',
+                  flex: isMobile ? '1 1 auto' : '0 0 auto'
                 }}
               >
                 <ShoppingBag size={18} />
-                Checkout Cart (<strong>{cartTotalItemsCount}</strong>)
+                <span>Checkout Cart <strong>({cartTotalItemsCount})</strong></span>
               </button>
             )}
             
             {/* Currency Dropdown */}
-            <div className="currency-dropdown-container">
+            <div className="currency-dropdown-container" style={{
+              flex: isMobile ? '1 1 auto' : '0 0 auto'
+            }}>
               <select
                 className="form-select currency-dropdown"
                 value={currency}
@@ -1293,9 +1334,11 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
                   background: 'rgba(31, 41, 55, 0.8)',
                   border: '1px solid rgba(64, 150, 226, 0.3)',
                   color: '#e6e6e6',
-                  width: '200px',
+                  width: isMobile ? '100%' : '200px',
                   borderRadius: '8px',
-                  padding: '8px 12px'
+                  padding: '8px 12px',
+                  fontSize: '0.95rem',
+                  cursor: 'pointer'
                 }}
               >
                 <option value="AUTO">Auto (Original Currency)</option>
@@ -1309,7 +1352,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
           </div>
         </div>
         
-        {/* 🔥 FIXED: Success Message - Shows correct cart quantity */}
+        {/* Success Message - Shows correct cart quantity */}
         {showCartSuccess && addedProduct && (
           <div className="cart-success-message" style={{
             position: 'fixed',
@@ -1330,7 +1373,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
             <div>
               <strong>{addedProduct.name}</strong> added to cart!
               <div style={{ fontSize: '0.9rem', opacity: 0.9 }}>
-                {/* 🔥 FIXED: Use getCartQuantity with product ID, not product name */}
                 {getCartQuantity(addedProduct.id)} item(s) in cart
               </div>
             </div>
@@ -2060,6 +2102,52 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
           
           button:hover {
             transform: translateY(-2px);
+          }
+
+          @keyframes slideInRight {
+            from {
+              transform: translateX(100%);
+              opacity: 0;
+            }
+            to {
+              transform: translateX(0);
+              opacity: 1;
+            }
+          }
+
+          @media (max-width: 768px) {
+            .products-header {
+              flex-direction: column;
+            }
+            
+            .products-actions {
+              width: 100%;
+              flex-direction: row;
+              justify-content: space-between;
+            }
+            
+            .currency-dropdown-container {
+              flex: 1;
+            }
+            
+            .currency-dropdown {
+              width: 100% !important;
+            }
+          }
+
+          @media (max-width: 480px) {
+            .products-actions {
+              flex-direction: column;
+            }
+            
+            .products-actions button,
+            .products-actions .currency-dropdown-container {
+              width: 100%;
+            }
+            
+            .currency-dropdown {
+              width: 100% !important;
+            }
           }
         `}
       </style>

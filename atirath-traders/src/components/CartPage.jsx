@@ -525,10 +525,26 @@ const CartPage = () => {
           minHeight: '100vh',
           background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
           color: 'white',
-          paddingTop: '80px'
+          paddingTop: '80px',
+          width: '100%',
+          overflowX: 'hidden'
         }}>
-          <div className="container" style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+          <div className="container" style={{ 
+            maxWidth: '1200px', 
+            margin: '0 auto', 
+            padding: '2rem 1rem',
+            width: '100%',
+            boxSizing: 'border-box'
+          }}>
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              marginBottom: '2rem',
+              gap: '1rem'
+            }}>
               <button
                 onClick={handleBack}
                 style={{
@@ -539,11 +555,12 @@ const CartPage = () => {
                   alignItems: 'center',
                   gap: '8px',
                   fontSize: '1rem',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  padding: '0.5rem'
                 }}
               >
                 <ArrowLeft size={20} />
-                Back
+                <span className="back-text">Back</span>
               </button>
               
               <div style={{
@@ -576,25 +593,28 @@ const CartPage = () => {
                   alignItems: 'center',
                   gap: '8px',
                   fontSize: '1rem',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  padding: '0.5rem'
                 }}
               >
                 <Home size={20} />
-                Home
+                <span className="home-text">Home</span>
               </button>
             </div>
 
             <div style={{
               textAlign: 'center',
-              padding: '4rem 2rem',
+              padding: '4rem 1rem',
               background: 'rgba(30, 41, 59, 0.5)',
               borderRadius: '16px',
               border: '2px solid rgba(64, 150, 226, 0.2)',
-              marginTop: '2rem'
+              marginTop: '2rem',
+              width: '100%',
+              boxSizing: 'border-box'
             }}>
               <ShoppingCart size={80} style={{ margin: '0 auto 1.5rem', color: '#475569', opacity: 0.7 }} />
-              <h1 style={{ fontSize: '2rem', marginBottom: '1rem', color: '#f1f5f9' }}>Your Cart is Empty</h1>
-              <p style={{ fontSize: '1.1rem', color: '#cbd5e0', marginBottom: '1rem', maxWidth: '500px', margin: '0 auto' }}>
+              <h1 style={{ fontSize: 'clamp(1.5rem, 5vw, 2rem)', marginBottom: '1rem', color: '#f1f5f9' }}>Your Cart is Empty</h1>
+              <p style={{ fontSize: 'clamp(1rem, 4vw, 1.1rem)', color: '#cbd5e0', marginBottom: '1rem', maxWidth: '500px', margin: '0 auto' }}>
                 Looks like you haven't added any products to your cart yet.
               </p>
               
@@ -605,9 +625,11 @@ const CartPage = () => {
                   background: 'rgba(59, 130, 246, 0.1)',
                   borderRadius: '10px',
                   border: '1px solid rgba(59, 130, 246, 0.3)',
-                  maxWidth: '400px'
+                  maxWidth: '400px',
+                  width: '100%',
+                  boxSizing: 'border-box'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
                     <User size={20} color="#60a5fa" />
                     <span style={{ color: '#60a5fa', fontWeight: '500' }}>Login Benefits</span>
                   </div>
@@ -625,13 +647,15 @@ const CartPage = () => {
                   background: 'linear-gradient(135deg, #8FB3E2 0%, #4096e2 100%)',
                   border: 'none',
                   color: 'white',
-                  padding: '1rem 2.5rem',
+                  padding: '1rem 2rem',
                   borderRadius: '10px',
-                  fontSize: '1.1rem',
+                  fontSize: 'clamp(1rem, 4vw, 1.1rem)',
                   fontWeight: '600',
                   cursor: 'pointer',
                   transition: 'transform 0.2s',
-                  marginTop: '1.5rem'
+                  marginTop: '1.5rem',
+                  width: 'auto',
+                  maxWidth: '100%'
                 }}
                 onMouseOver={(e) => e.target.style.transform = 'scale(1.05)'}
                 onMouseOut={(e) => e.target.style.transform = 'scale(1)'}
@@ -659,11 +683,33 @@ const CartPage = () => {
         minHeight: '100vh',
         background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
         color: 'white',
-        paddingTop: '80px'
+        paddingTop: '80px',
+        width: '100%',
+        overflowX: 'hidden'
       }}>
-        <div className="container" style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+        <div className="container" style={{ 
+          maxWidth: '1200px', 
+          margin: '0 auto', 
+          padding: '2rem 1rem',
+          width: '100%',
+          boxSizing: 'border-box'
+        }}>
+          {/* Header Section - Responsive */}
+          <div style={{ 
+            display: 'flex', 
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            marginBottom: '2rem',
+            gap: '1rem'
+          }}>
+            <div style={{ 
+              display: 'flex', 
+              gap: '0.5rem', 
+              alignItems: 'center',
+              flexWrap: 'wrap'
+            }}>
               <button
                 onClick={handleBack}
                 style={{
@@ -672,13 +718,14 @@ const CartPage = () => {
                   color: '#8FB3E2',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px',
-                  fontSize: '1rem',
-                  cursor: 'pointer'
+                  gap: '6px',
+                  fontSize: '0.95rem',
+                  cursor: 'pointer',
+                  padding: '0.5rem'
                 }}
               >
-                <ArrowLeft size={20} />
-                Back
+                <ArrowLeft size={18} />
+                <span className="back-text">Back</span>
               </button>
               
               <button
@@ -688,46 +735,58 @@ const CartPage = () => {
                   background: 'rgba(59, 130, 246, 0.2)',
                   border: '1px solid rgba(59, 130, 246, 0.5)',
                   color: '#60a5fa',
-                  padding: '0.5rem 1rem',
+                  padding: '0.5rem 0.75rem',
                   borderRadius: '6px',
                   cursor: isSyncing ? 'not-allowed' : 'pointer',
-                  fontSize: '0.9rem',
+                  fontSize: '0.85rem',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px',
-                  transition: 'all 0.2s'
+                  gap: '4px',
+                  transition: 'all 0.2s',
+                  whiteSpace: 'nowrap'
                 }}
                 onMouseOver={(e) => !isSyncing && (e.target.style.background = 'rgba(59, 130, 246, 0.3)')}
                 onMouseOut={(e) => !isSyncing && (e.target.style.background = 'rgba(59, 130, 246, 0.2)')}
               >
-                <RefreshCw size={16} className={isSyncing ? 'spinning' : ''} />
-                {isSyncing ? 'Syncing...' : 'Sync Cart'}
+                <RefreshCw size={14} className={isSyncing ? 'spinning' : ''} />
+                <span className="sync-text">{isSyncing ? 'Syncing...' : 'Sync'}</span>
               </button>
               
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
-                padding: '6px 12px',
+                gap: '6px',
+                padding: '4px 10px',
                 background: 'rgba(30, 41, 59, 0.6)',
                 borderRadius: '20px',
-                border: `1px solid ${cartStatus === 'synced' ? '#10b981' : cartStatus === 'error' ? '#ef4444' : '#8FB3E2'}`
+                border: `1px solid ${cartStatus === 'synced' ? '#10b981' : cartStatus === 'error' ? '#ef4444' : '#8FB3E2'}`,
+                whiteSpace: 'nowrap'
               }}>
                 <div style={{
-                  width: '8px',
-                  height: '8px',
+                  width: '6px',
+                  height: '6px',
                   borderRadius: '50%',
                   background: cartStatus === 'synced' ? '#10b981' : cartStatus === 'error' ? '#ef4444' : '#8FB3E2'
                 }} />
-                <span style={{ fontSize: '0.8rem', color: '#cbd5e0' }}>
-                  {cartStatus === 'synced' ? (lastSynced ? `Synced ${lastSynced}` : 'Cloud Saved') : cartStatus === 'error' ? 'Sync Error' : 'Local Only'}
+                <span style={{ fontSize: '0.75rem', color: '#cbd5e0' }}>
+                  {cartStatus === 'synced' ? (lastSynced ? 'Synced' : 'Cloud') : cartStatus === 'error' ? 'Error' : 'Local'}
                 </span>
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <h1 style={{ fontSize: '2rem', margin: 0, color: '#f1f5f9' }}>
-                Shopping Cart ({getTotalItems()} {getTotalItems() === 1 ? 'item' : 'items'})
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.75rem',
+              flexWrap: 'wrap'
+            }}>
+              <h1 style={{ 
+                fontSize: 'clamp(1.2rem, 4vw, 2rem)', 
+                margin: 0, 
+                color: '#f1f5f9',
+                whiteSpace: 'nowrap'
+              }}>
+                Cart ({getTotalItems()})
               </h1>
               <button
                 onClick={handleClearCart}
@@ -735,16 +794,17 @@ const CartPage = () => {
                   background: 'none',
                   border: '1px solid #ef4444',
                   color: '#ef4444',
-                  padding: '0.5rem 1rem',
+                  padding: '0.4rem 0.8rem',
                   borderRadius: '6px',
                   cursor: 'pointer',
-                  fontSize: '0.9rem',
-                  transition: 'all 0.2s'
+                  fontSize: '0.85rem',
+                  transition: 'all 0.2s',
+                  whiteSpace: 'nowrap'
                 }}
                 onMouseOver={(e) => e.target.style.background = 'rgba(239, 68, 68, 0.1)'}
                 onMouseOut={(e) => e.target.style.background = 'none'}
               >
-                Clear All
+                Clear
               </button>
             </div>
           </div>
@@ -752,21 +812,24 @@ const CartPage = () => {
           {!user && (
             <div style={{
               marginBottom: '1.5rem',
-              padding: '1rem 1.5rem',
+              padding: '1rem',
               background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.2) 100%)',
               borderRadius: '12px',
               border: '1px solid rgba(59, 130, 246, 0.3)',
               display: 'flex',
+              flexDirection: 'row',
+              flexWrap: 'wrap',
               justifyContent: 'space-between',
-              alignItems: 'center'
+              alignItems: 'center',
+              gap: '1rem'
             }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '0.25rem' }}>
-                  <User size={20} color="#60a5fa" />
-                  <span style={{ color: '#f1f5f9', fontWeight: '500' }}>Save your cart permanently</span>
+              <div style={{ flex: 1, minWidth: '200px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
+                  <User size={18} color="#60a5fa" />
+                  <span style={{ color: '#f1f5f9', fontWeight: '500', fontSize: '0.95rem' }}>Save your cart permanently</span>
                 </div>
-                <p style={{ margin: 0, color: '#cbd5e0', fontSize: '0.9rem' }}>
-                  Login to save your cart and access it from any device
+                <p style={{ margin: 0, color: '#cbd5e0', fontSize: '0.85rem' }}>
+                  Login to access from any device
                 </p>
               </div>
               <button
@@ -775,28 +838,38 @@ const CartPage = () => {
                   background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
                   border: 'none',
                   color: 'white',
-                  padding: '0.6rem 1.2rem',
+                  padding: '0.6rem 1rem',
                   borderRadius: '8px',
                   cursor: 'pointer',
                   fontSize: '0.9rem',
                   fontWeight: '500',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px',
-                  transition: 'all 0.2s'
+                  gap: '6px',
+                  transition: 'all 0.2s',
+                  whiteSpace: 'nowrap'
                 }}
                 onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
                 onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
               >
                 <LogIn size={16} />
-                Login Now
+                Login
               </button>
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '2rem' }}>
-            {/* Cart Items List */}
-            <div>
+          {/* Main Content - Responsive Flex Layout */}
+          <div style={{ 
+            display: 'flex', 
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            gap: '2rem'
+          }}>
+            {/* Cart Items List - Takes remaining space */}
+            <div style={{ 
+              flex: '1 1 500px',
+              minWidth: '280px'
+            }}>
               <div style={{
                 background: 'rgba(30, 41, 59, 0.6)',
                 borderRadius: '12px',
@@ -813,40 +886,45 @@ const CartPage = () => {
                   return (
                     <div key={item.cartItemId || item.id} style={{
                       display: 'flex',
-                      alignItems: 'center',
-                      padding: '1.5rem',
+                      flexDirection: 'row',
+                      flexWrap: 'wrap',
+                      alignItems: 'flex-start',
+                      padding: '1rem',
                       borderBottom: index < items.length - 1 ? '1px solid rgba(64, 150, 226, 0.2)' : 'none',
-                      gap: '1.5rem',
+                      gap: '1rem',
                       transition: 'background 0.2s'
                     }}
                     onMouseOver={(e) => e.currentTarget.style.background = 'rgba(30, 41, 59, 0.8)'}
-                    onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                    >
+                    onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}>
                       <img 
                         src={item.image} 
                         alt={item.name} 
                         style={{ 
-                          width: '100px', 
-                          height: '100px', 
+                          width: '80px', 
+                          height: '80px', 
                           objectFit: 'cover', 
-                          borderRadius: '10px',
-                          border: '2px solid rgba(64, 150, 226, 0.3)'
+                          borderRadius: '8px',
+                          border: '2px solid rgba(64, 150, 226, 0.3)',
+                          flexShrink: 0
                         }} 
                         onError={(e) => {
                           e.target.src = 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=500&auto=format&fit=crop&q=60';
                         }}
                       />
                       
-                      <div style={{ flex: 1 }}>
-                        <div style={{ margin: '0 0 0.5rem' }}>
-                          <div style={{ fontWeight: 'bold', fontSize: '1.2rem', color: 'white' }}>
+                      <div style={{ 
+                        flex: '1 1 200px',
+                        minWidth: '150px'
+                      }}>
+                        <div style={{ margin: '0 0 0.25rem' }}>
+                          <div style={{ fontWeight: 'bold', fontSize: '1rem', color: 'white' }}>
                             {item.name}
                           </div>
                           {item.selectedGradeDisplay && (
                             <div style={{ 
                               color: '#10b981', 
-                              fontSize: '1rem', 
-                              marginTop: '4px',
+                              fontSize: '0.9rem', 
+                              marginTop: '2px',
                               fontWeight: '500'
                             }}>
                               Grade: {item.selectedGradeDisplay}
@@ -854,45 +932,53 @@ const CartPage = () => {
                           )}
                         </div>
                         
-                        <p style={{ margin: '0 0 0.5rem', color: '#94a3b8', fontSize: '0.95rem' }}>
-                          {item.companyName} • {item.brandName || 'General'}
+                        <p style={{ margin: '0 0 0.25rem', color: '#94a3b8', fontSize: '0.85rem' }}>
+                          {item.companyName}
                         </p>
                         
                         {item.selectedPacking && (
-                          <p style={{ margin: '0 0 0.25rem', color: '#60a5fa', fontSize: '0.9rem' }}>
-                            Packing: {item.selectedPacking}
+                          <p style={{ margin: '0 0 0.25rem', color: '#60a5fa', fontSize: '0.85rem' }}>
+                            {item.selectedPacking}
                           </p>
                         )}
                         
-                        {item.selectedQuantity && (
-                          <p style={{ margin: '0 0 0.5rem', color: '#60a5fa', fontSize: '0.9rem' }}>
-                            Quantity: {item.selectedQuantity} {item.quantityUnit || 'kg'}
-                          </p>
-                        )}
-                        
-                        <p style={{ margin: '0 0 0.5rem', color: '#10b981', fontSize: '1.1rem', fontWeight: 'bold' }}>
+                        <p style={{ margin: '0 0 0.25rem', color: '#10b981', fontSize: '0.95rem', fontWeight: 'bold' }}>
                           {unitPrice}
                         </p>
                         
                         {item.synced && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', color: '#10b981' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: '#10b981' }}>
                             <Check size={12} />
                             <span>Synced</span>
                           </div>
                         )}
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'rgba(15, 23, 42, 0.5)', padding: '0.5rem', borderRadius: '8px' }}>
+                      <div style={{ 
+                        display: 'flex',
+                        flexDirection: 'row',
+                        flexWrap: 'wrap',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                        marginLeft: 'auto'
+                      }}>
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '0.5rem', 
+                          background: 'rgba(15, 23, 42, 0.5)', 
+                          padding: '0.25rem', 
+                          borderRadius: '6px'
+                        }}>
                           <button 
                             onClick={() => handleQuantityChange(item.cartItemId, -1)}
                             style={{
                               background: 'none',
                               border: '1px solid #4096e2',
                               color: 'white',
-                              width: '36px',
-                              height: '36px',
-                              borderRadius: '6px',
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '4px',
                               cursor: 'pointer',
                               display: 'flex',
                               alignItems: 'center',
@@ -902,13 +988,13 @@ const CartPage = () => {
                             onMouseOver={(e) => e.target.style.background = 'rgba(64, 150, 226, 0.2)'}
                             onMouseOut={(e) => e.target.style.background = 'none'}
                           >
-                            <Minus size={18} />
+                            <Minus size={16} />
                           </button>
                           <span style={{ 
                             fontWeight: 'bold', 
-                            minWidth: '30px', 
+                            minWidth: '24px', 
                             textAlign: 'center',
-                            fontSize: '1.1rem',
+                            fontSize: '1rem',
                             color: 'white'
                           }}>
                             {item.quantity}
@@ -919,9 +1005,9 @@ const CartPage = () => {
                               background: 'none',
                               border: '1px solid #4096e2',
                               color: 'white',
-                              width: '36px',
-                              height: '36px',
-                              borderRadius: '6px',
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '4px',
                               cursor: 'pointer',
                               display: 'flex',
                               alignItems: 'center',
@@ -931,26 +1017,26 @@ const CartPage = () => {
                             onMouseOver={(e) => e.target.style.background = 'rgba(64, 150, 226, 0.2)'}
                             onMouseOut={(e) => e.target.style.background = 'none'}
                           >
-                            <Plus size={18} />
+                            <Plus size={16} />
                           </button>
                         </div>
 
-                        <div style={{ textAlign: 'right', minWidth: '120px' }}>
+                        <div style={{ textAlign: 'right', minWidth: '90px' }}>
                           {totalPrice.isRange ? (
                             <>
-                              <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#10b981' }}>
-                                {currencySymbol}{totalPrice.min} - {currencySymbol}{totalPrice.max}
+                              <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#10b981' }}>
+                                {currencySymbol}{totalPrice.min}
                               </div>
-                              <div style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
+                              <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
                                 {item.quantity} × {packageSize}{packageUnit}
                               </div>
                             </>
                           ) : (
                             <>
-                              <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#10b981' }}>
+                              <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#10b981' }}>
                                 {totalPrice.display || `${currencySymbol}${totalPrice.value}`}
                               </div>
-                              <div style={{ fontSize: '0.9rem', color: '#94a3b8' }}>
+                              <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
                                 {item.quantity} × {packageSize}{packageUnit}
                               </div>
                             </>
@@ -963,14 +1049,15 @@ const CartPage = () => {
                             background: 'none',
                             border: '1px solid #ef4444',
                             color: '#ef4444',
-                            width: '42px',
-                            height: '42px',
-                            borderRadius: '8px',
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '6px',
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            transition: 'all 0.2s'
+                            transition: 'all 0.2s',
+                            flexShrink: 0
                           }}
                           onMouseOver={(e) => {
                             e.target.style.background = 'rgba(239, 68, 68, 0.1)';
@@ -979,7 +1066,7 @@ const CartPage = () => {
                             e.target.style.background = 'none';
                           }}
                         >
-                          <Trash2 size={20} />
+                          <Trash2 size={18} />
                         </button>
                       </div>
                     </div>
@@ -994,12 +1081,14 @@ const CartPage = () => {
                     background: 'none',
                     border: '2px solid #8FB3E2',
                     color: '#8FB3E2',
-                    padding: '0.9rem 2rem',
-                    borderRadius: '10px',
-                    fontSize: '1.1rem',
+                    padding: '0.75rem 1.5rem',
+                    borderRadius: '8px',
+                    fontSize: '1rem',
                     fontWeight: '600',
                     cursor: 'pointer',
-                    transition: 'all 0.2s'
+                    transition: 'all 0.2s',
+                    width: '100%',
+                    maxWidth: '300px'
                   }}
                   onMouseOver={(e) => {
                     e.target.style.background = 'rgba(143, 179, 226, 0.1)';
@@ -1015,19 +1104,22 @@ const CartPage = () => {
               </div>
             </div>
 
-            {/* Order Summary */}
-            <div style={{
+            {/* Order Summary - Fixed width on desktop, full width on mobile */}
+            <div style={{ 
+              flex: '0 0 300px',
+              width: '100%',
               background: 'rgba(30, 41, 59, 0.6)',
               borderRadius: '12px',
               border: '1px solid rgba(64, 150, 226, 0.3)',
-              padding: '2rem',
+              padding: '1.5rem',
               height: 'fit-content',
               position: 'sticky',
-              top: '100px'
+              top: '100px',
+              alignSelf: 'flex-start'
             }}>
-              <h2 style={{ margin: '0 0 1.5rem', color: '#f1f5f9', fontSize: '1.5rem' }}>Order Summary</h2>
+              <h2 style={{ margin: '0 0 1.5rem', color: '#f1f5f9', fontSize: '1.3rem' }}>Order Summary</h2>
               
-              <div style={{ marginBottom: '1.5rem' }}>
+              <div style={{ marginBottom: '1.5rem', maxHeight: '300px', overflowY: 'auto' }}>
                 {items.map(item => {
                   const totalPrice = getItemTotalPrice(item);
                   const unitPrice = getUnitPriceDisplay(item);
@@ -1039,25 +1131,26 @@ const CartPage = () => {
                     <div key={item.cartItemId || item.id} style={{
                       display: 'flex',
                       justifyContent: 'space-between',
-                      alignItems: 'center',
+                      alignItems: 'flex-start',
                       marginBottom: '0.75rem',
                       paddingBottom: '0.75rem',
-                      borderBottom: '1px solid rgba(64, 150, 226, 0.1)'
+                      borderBottom: '1px solid rgba(64, 150, 226, 0.1)',
+                      gap: '0.5rem'
                     }}>
-                      <div>
-                        <div style={{ color: 'white', fontSize: '0.95rem' }}>
-                          {item.name}
+                      <div style={{ flex: 1 }}>
+                        <div style={{ color: 'white', fontSize: '0.9rem' }}>
+                          {item.name.length > 20 ? item.name.substring(0, 20) + '...' : item.name}
                           {item.selectedGradeDisplay && (
-                            <span style={{ color: '#10b981', marginLeft: '4px' }}>
+                            <span style={{ color: '#10b981', marginLeft: '4px', fontSize: '0.8rem' }}>
                               ({item.selectedGradeDisplay})
                             </span>
                           )}
                         </div>
-                        <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
-                          Qty: {item.quantity} × {packageSize}{packageUnit} @ {unitPrice}
+                        <div style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
+                          {item.quantity} × {packageSize}{packageUnit}
                         </div>
                       </div>
-                      <div style={{ color: '#10b981', fontWeight: '500' }}>
+                      <div style={{ color: '#10b981', fontWeight: '500', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>
                         {totalPrice.display || `${currencySymbol}${totalPrice.value}`}
                       </div>
                     </div>
@@ -1065,36 +1158,36 @@ const CartPage = () => {
                 })}
               </div>
 
-              <div style={{ borderTop: '2px solid rgba(64, 150, 226, 0.3)', paddingTop: '1.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+              <div style={{ borderTop: '2px solid rgba(64, 150, 226, 0.3)', paddingTop: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.95rem' }}>
                   <span style={{ color: '#cbd5e0' }}>Subtotal</span>
                   <span style={{ color: 'white', fontWeight: '500' }}>₹{totalPrice}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.95rem' }}>
                   <span style={{ color: '#cbd5e0' }}>Shipping</span>
-                  <span style={{ color: '#10b981' }}>Calculated at checkout</span>
+                  <span style={{ color: '#10b981', fontSize: '0.85rem' }}>Calculated at checkout</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.95rem' }}>
                   <span style={{ color: '#cbd5e0' }}>Tax (10%)</span>
                   <span style={{ color: 'white', fontWeight: '500' }}>₹{taxAmount}</span>
                 </div>
                 <div style={{ 
                   display: 'flex', 
                   justifyContent: 'space-between', 
-                  marginTop: '1.5rem',
+                  marginTop: '1rem',
                   paddingTop: '1rem',
                   borderTop: '2px solid rgba(64, 150, 226, 0.3)',
-                  fontSize: '1.2rem'
+                  fontSize: '1.1rem'
                 }}>
                   <span style={{ color: '#f1f5f9', fontWeight: 'bold' }}>Total</span>
-                  <span style={{ color: '#10b981', fontWeight: 'bold', fontSize: '1.4rem' }}>
+                  <span style={{ color: '#10b981', fontWeight: 'bold', fontSize: '1.2rem' }}>
                     ₹{finalTotal}
                   </span>
                 </div>
               </div>
 
               {/* Checkout Buttons */}
-              <div style={{ marginTop: '2rem' }}>
+              <div style={{ marginTop: '1.5rem' }}>
                 {user ? (
                   <button
                     onClick={handleCartCheckout}
@@ -1105,22 +1198,22 @@ const CartPage = () => {
                         : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                       border: 'none',
                       color: 'white',
-                      padding: '1.2rem',
-                      borderRadius: '10px',
-                      fontSize: '1.1rem',
+                      padding: '1rem',
+                      borderRadius: '8px',
+                      fontSize: '1rem',
                       fontWeight: '600',
                       cursor: (isProcessing || isLoadingProfile) ? 'not-allowed' : 'pointer',
                       width: '100%',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '10px',
+                      gap: '8px',
                       transition: 'all 0.3s'
                     }}
                     onMouseOver={(e) => {
                       if (!isProcessing && !isLoadingProfile) {
-                        e.target.style.transform = 'translateY(-3px)';
-                        e.target.style.boxShadow = '0 10px 25px rgba(16, 185, 129, 0.3)';
+                        e.target.style.transform = 'translateY(-2px)';
+                        e.target.style.boxShadow = '0 5px 15px rgba(16, 185, 129, 0.3)';
                       }
                     }}
                     onMouseOut={(e) => {
@@ -1138,12 +1231,12 @@ const CartPage = () => {
                     ) : isLoadingProfile ? (
                       <>
                         <div className="spinner-border spinner-border-sm me-2" role="status"></div>
-                        Loading Profile...
+                        Loading...
                       </>
                     ) : (
                       <>
-                        <ShoppingBag size={24} />
-                        Proceed to Checkout ({items.length} items)
+                        <ShoppingBag size={20} />
+                        Checkout
                       </>
                     )}
                   </button>
@@ -1158,19 +1251,19 @@ const CartPage = () => {
                           : 'linear-gradient(135deg, #8FB3E2 0%, #4096e2 100%)',
                         border: 'none',
                         color: 'white',
-                        padding: '1.2rem',
-                        borderRadius: '10px',
-                        fontSize: '1.1rem',
+                        padding: '1rem',
+                        borderRadius: '8px',
+                        fontSize: '1rem',
                         fontWeight: '600',
                         cursor: isProcessing ? 'not-allowed' : 'pointer',
                         width: '100%',
-                        marginBottom: '1rem',
+                        marginBottom: '0.75rem',
                         transition: 'all 0.3s'
                       }}
                       onMouseOver={(e) => {
                         if (!isProcessing) {
-                          e.target.style.transform = 'translateY(-3px)';
-                          e.target.style.boxShadow = '0 10px 25px rgba(64, 150, 226, 0.3)';
+                          e.target.style.transform = 'translateY(-2px)';
+                          e.target.style.boxShadow = '0 5px 15px rgba(64, 150, 226, 0.3)';
                         }
                       }}
                       onMouseOut={(e) => {
@@ -1180,7 +1273,7 @@ const CartPage = () => {
                         }
                       }}
                     >
-                      {isProcessing ? 'Processing...' : `Checkout as Guest (${items.length} items)`}
+                      {isProcessing ? 'Processing...' : 'Guest Checkout'}
                     </button>
                     
                     <button
@@ -1189,9 +1282,9 @@ const CartPage = () => {
                         background: 'transparent',
                         border: '2px solid #10b981',
                         color: '#10b981',
-                        padding: '1rem',
-                        borderRadius: '10px',
-                        fontSize: '1rem',
+                        padding: '0.8rem',
+                        borderRadius: '8px',
+                        fontSize: '0.95rem',
                         fontWeight: '600',
                         cursor: 'pointer',
                         width: '100%',
@@ -1206,8 +1299,8 @@ const CartPage = () => {
                         e.target.style.transform = 'translateY(0)';
                       }}
                     >
-                      <LogIn size={20} style={{ marginRight: '8px', verticalAlign: 'middle' }} />
-                      Login & Save Cart
+                      <LogIn size={18} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
+                      Login
                     </button>
                   </>
                 )}
@@ -1217,12 +1310,12 @@ const CartPage = () => {
                 marginTop: '1rem', 
                 padding: '0.75rem',
                 background: 'rgba(16, 185, 129, 0.1)',
-                borderRadius: '8px',
+                borderRadius: '6px',
                 border: '1px solid rgba(16, 185, 129, 0.2)'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981', fontSize: '0.9rem' }}>
-                  <Check size={16} />
-                  <span>Secure checkout • 30-day return policy • Free shipping on orders over ₹10,000</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', fontSize: '0.8rem' }}>
+                  <Check size={14} />
+                  <span>Secure checkout • 30-day returns</span>
                 </div>
               </div>
             </div>
@@ -1263,6 +1356,72 @@ const CartPage = () => {
           
           @keyframes spinner-border {
             to { transform: rotate(360deg); }
+          }
+
+          /* Responsive breakpoints */
+          @media (max-width: 992px) {
+            .cart-page .container {
+              padding: 1.5rem 1rem;
+            }
+            
+            .back-text, .home-text {
+              display: inline;
+            }
+          }
+
+          @media (max-width: 768px) {
+            .cart-page {
+              padding-top: 70px;
+            }
+            
+            .back-text, .home-text {
+              display: inline;
+            }
+            
+            .sync-text {
+              display: inline;
+            }
+            
+            /* Adjust cart items for mobile */
+            [class*="cart-item"] {
+              flex-direction: column;
+            }
+          }
+
+          @media (max-width: 480px) {
+            .cart-page {
+              padding-top: 60px;
+            }
+            
+            .back-text, .home-text {
+              display: none;
+            }
+            
+            .sync-text {
+              display: none;
+            }
+            
+            .cart-page .container {
+              padding: 1rem 0.75rem;
+            }
+            
+            /* Further adjust cart items for small phones */
+            [class*="cart-item"] {
+              padding: 0.75rem;
+            }
+          }
+
+          /* Ensure images don't overflow */
+          img {
+            max-width: 100%;
+            height: auto;
+          }
+
+          /* Fix for sticky on mobile */
+          @media (max-width: 768px) {
+            div[style*="position: sticky"] {
+              position: static;
+            }
           }
         `}</style>
       </div>
