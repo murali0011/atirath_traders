@@ -1,4 +1,4 @@
-// firebase.js - Complete Updated Version with Separate Collections
+// firebase.js - Complete Updated Version with Separate Collections and History
 import { initializeApp, getApps } from "firebase/app";
 import { getAnalytics, isSupported } from "firebase/analytics";
 import {
@@ -104,6 +104,345 @@ const getNextVendorNumber = async () => {
   } catch (error) {
     console.error("Error getting next vendor number:", error);
     return 1;
+  }
+};
+
+/* ==========================================================================
+   HISTORY FUNCTIONS - Track all admin actions
+========================================================================== */
+
+/**
+ * Log an action to Firebase history
+ * @param {Object} actionData - Action data to log
+ * @returns {Object} Result with success status
+ */
+export const logHistoryAction = async (actionData) => {
+  try {
+    console.log('📝 Logging history action:', actionData);
+    
+    const historyRef = push(ref(database, "history"));
+    const timestamp = new Date().toISOString();
+    
+    const historyEntry = {
+      ...actionData,
+      id: historyRef.key,
+      timestamp: timestamp,
+      createdAt: timestamp
+    };
+    
+    await set(historyRef, historyEntry);
+    console.log('✅ History logged successfully with ID:', historyRef.key);
+    
+    return { 
+      success: true, 
+      id: historyRef.key 
+    };
+  } catch (err) {
+    console.error("❌ logHistoryAction error:", err);
+    return { 
+      success: false, 
+      error: err.message 
+    };
+  }
+};
+
+/**
+ * Get all history entries
+ * @param {Object} options - Filter options (limit, entity, action, user)
+ * @returns {Array} Array of history entries
+ */
+export const getAllHistory = async (options = {}) => {
+  try {
+    console.log('🔄 getAllHistory called with options:', options);
+    
+    const historyRef = ref(database, "history");
+    const snapshot = await get(historyRef);
+    
+    if (!snapshot.exists()) {
+      console.log('❌ No history found');
+      return [];
+    }
+
+    const data = snapshot.val();
+    let historyArray = Object.keys(data).map(key => ({
+      id: key,
+      ...data[key]
+    }));
+
+    // Apply filters
+    if (options.entity) {
+      historyArray = historyArray.filter(h => h.entity === options.entity);
+    }
+    
+    if (options.action) {
+      historyArray = historyArray.filter(h => h.action === options.action);
+    }
+    
+    if (options.user) {
+      const searchTerm = options.user.toLowerCase();
+      historyArray = historyArray.filter(h => 
+        (h.changedBy && h.changedBy.toLowerCase().includes(searchTerm)) ||
+        (h.userEmail && h.userEmail.toLowerCase().includes(searchTerm))
+      );
+    }
+    
+    if (options.startDate) {
+      historyArray = historyArray.filter(h => 
+        new Date(h.timestamp) >= new Date(options.startDate)
+      );
+    }
+    
+    if (options.endDate) {
+      const endDate = new Date(options.endDate);
+      endDate.setHours(23, 59, 59);
+      historyArray = historyArray.filter(h => 
+        new Date(h.timestamp) <= endDate
+      );
+    }
+
+    // Sort by timestamp (newest first)
+    historyArray.sort((a, b) => 
+      new Date(b.timestamp || 0) - new Date(a.timestamp || 0)
+    );
+
+    console.log('✅ Retrieved', historyArray.length, 'history entries');
+    return historyArray;
+  } catch (err) {
+    console.error("❌ getAllHistory error:", err);
+    throw err;
+  }
+};
+
+/**
+ * Get history for a specific entity (user, product, order)
+ * @param {string} entityType - Entity type (user, product, order)
+ * @param {string} entityId - Entity ID
+ * @returns {Array} Array of history entries
+ */
+export const getEntityHistory = async (entityType, entityId) => {
+  try {
+    console.log('🔄 getEntityHistory called for:', entityType, entityId);
+    
+    const historyRef = ref(database, "history");
+    const snapshot = await get(historyRef);
+    
+    if (!snapshot.exists()) {
+      return [];
+    }
+
+    const data = snapshot.val();
+    const historyArray = Object.keys(data)
+      .map(key => ({
+        id: key,
+        ...data[key]
+      }))
+      .filter(h => h.entity === entityType && h.entityId === entityId)
+      .sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+
+    console.log('✅ Retrieved', historyArray.length, 'history entries for entity');
+    return historyArray;
+  } catch (err) {
+    console.error("❌ getEntityHistory error:", err);
+    throw err;
+  }
+};
+
+/**
+ * Clear old history entries (optional - for cleanup)
+ * @param {number} daysToKeep - Number of days to keep history
+ * @returns {Object} Result with count of deleted entries
+ */
+export const clearOldHistory = async (daysToKeep = 90) => {
+  try {
+    console.log('🔄 clearOldHistory called, keeping last', daysToKeep, 'days');
+    
+    const historyRef = ref(database, "history");
+    const snapshot = await get(historyRef);
+    
+    if (!snapshot.exists()) {
+      return { success: true, deletedCount: 0 };
+    }
+
+    const data = snapshot.val();
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+    
+    let deletedCount = 0;
+    
+    for (const [key, value] of Object.entries(data)) {
+      const entryDate = new Date(value.timestamp || value.createdAt || 0);
+      if (entryDate < cutoffDate) {
+        await remove(ref(database, `history/${key}`));
+        deletedCount++;
+      }
+    }
+    
+    console.log('✅ Cleared', deletedCount, 'old history entries');
+    return { success: true, deletedCount };
+  } catch (err) {
+    console.error("❌ clearOldHistory error:", err);
+    return { success: false, error: err.message };
+  }
+};
+
+/* ==========================================================================
+   ADMIN FUNCTIONS
+========================================================================== */
+
+/**
+ * Check if a user is an admin by UID or email
+ * @param {string} uid - User UID
+ * @param {string} email - User email (optional)
+ * @returns {boolean} True if user is admin
+ */
+export const checkIsAdmin = async (uid, email = null) => {
+  console.log('🔄 checkIsAdmin called for uid:', uid, 'email:', email);
+  
+  try {
+    // First check if there's an admin node in the database
+    const adminRef = ref(database, 'admin');
+    const adminSnap = await get(adminRef);
+    
+    if (adminSnap.exists()) {
+      const adminData = adminSnap.val();
+      
+      // Check all admin entries
+      for (const key in adminData) {
+        const admin = adminData[key];
+        
+        // Match by UID (most secure)
+        if (admin.uid === uid) {
+          console.log('✅ Admin found by UID:', uid);
+          return true;
+        }
+        
+        // Match by email as fallback
+        if (email && admin.email === email) {
+          console.log('✅ Admin found by email:', email);
+          return true;
+        }
+      }
+    }
+    
+    console.log('❌ User is not an admin:', uid);
+    return false;
+    
+  } catch (err) {
+    console.error("❌ checkIsAdmin error:", err);
+    return false;
+  }
+};
+
+/**
+ * Get all admin users
+ * @returns {Array} Array of admin objects
+ */
+export const getAllAdmins = async () => {
+  try {
+    console.log('🔄 getAllAdmins called');
+    
+    const adminRef = ref(database, 'admin');
+    const adminSnap = await get(adminRef);
+    
+    if (!adminSnap.exists()) {
+      console.log('❌ No admins found');
+      return [];
+    }
+
+    const data = adminSnap.val();
+    const adminsArray = Object.keys(data).map(key => ({
+      adminKey: key,
+      ...data[key],
+      userType: 'admin'
+    })).sort((a, b) =>
+      new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+    );
+
+    console.log('✅ Retrieved', adminsArray.length, 'admins');
+    return adminsArray;
+  } catch (err) {
+    console.error("❌ getAllAdmins error:", err);
+    throw err;
+  }
+};
+
+/**
+ * Add a new admin user
+ * @param {Object} adminData - Admin data
+ * @returns {Object} Result with success status
+ */
+export const addAdmin = async (adminData) => {
+  try {
+    console.log('🔄 addAdmin called for email:', adminData.email);
+    
+    // Get next admin number
+    const adminRef = ref(database, 'admin');
+    const adminSnap = await get(adminRef);
+    
+    let adminNumber = 1;
+    if (adminSnap.exists()) {
+      const admins = adminSnap.val();
+      const keys = Object.keys(admins);
+      const nums = keys
+        .filter(k => k.startsWith('admin-'))
+        .map(k => {
+          const num = parseInt(k.replace('admin-', ''));
+          return isNaN(num) ? 0 : num;
+        })
+        .filter(n => n > 0);
+      
+      adminNumber = nums.length ? Math.max(...nums) + 1 : 1;
+    }
+    
+    const adminKey = `admin-${adminNumber}`;
+    
+    const adminProfile = {
+      uid: adminData.uid || '',
+      email: adminData.email || '',
+      name: adminData.name || 'Admin',
+      role: adminData.role || 'admin',
+      createdBy: adminData.createdBy || 'system',
+      createdAt: Date.now(),
+      permissions: adminData.permissions || ['all'],
+      lastLogin: adminData.lastLogin || null,
+      status: adminData.status || 'active',
+      originalUserType: adminData.originalUserType || 'user'
+    };
+    
+    await set(ref(database, `admin/${adminKey}`), adminProfile);
+    console.log('✅ Admin added successfully:', adminKey);
+    
+    return { 
+      success: true, 
+      adminKey, 
+      adminNumber 
+    };
+    
+  } catch (err) {
+    console.error("❌ addAdmin error:", err);
+    return { 
+      success: false, 
+      error: err.message 
+    };
+  }
+};
+
+/**
+ * Remove an admin user
+ * @param {string} adminKey - Admin key (admin-1, admin-2, etc.)
+ * @returns {boolean} Success status
+ */
+export const removeAdmin = async (adminKey) => {
+  try {
+    console.log('🔄 removeAdmin called for adminKey:', adminKey);
+    
+    await remove(ref(database, `admin/${adminKey}`));
+    console.log('✅ Admin removed successfully:', adminKey);
+    
+    return true;
+  } catch (err) {
+    console.error("❌ removeAdmin error:", err);
+    return false;
   }
 };
 
@@ -1203,6 +1542,18 @@ export default {
   app, 
   auth, 
   database,
+  
+  // History functions
+  logHistoryAction,
+  getAllHistory,
+  getEntityHistory,
+  clearOldHistory,
+  
+  // Admin functions
+  checkIsAdmin,
+  getAllAdmins,
+  addAdmin,
+  removeAdmin,
   
   // User functions
   storeUserProfile,

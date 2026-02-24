@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { getAllUsers, getAllVendors } from "../../firebase";
+import { getAllUsers, getAllVendors, getAllAdmins, addAdmin, removeAdmin, getUserProfile, logHistoryAction } from "../../firebase";
 import {
   FiUser,
   FiMail,
@@ -14,11 +14,16 @@ import {
   FiBriefcase,
   FiCheckCircle,
   FiAlertCircle,
-  FiUsers
+  FiUsers,
+  FiShield,
+  FiUserPlus,
+  FiUserMinus,
+  FiStar
 } from "react-icons/fi";
 
 export default function Users() {
   const [users, setUsers] = useState([]);
+  const [admins, setAdmins] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState(null);
   const [stats, setStats] = useState({
@@ -26,53 +31,72 @@ export default function Users() {
     today: 0,
     active: 0,
     vendors: 0,
-    activeVendors: 0
+    activeVendors: 0,
+    admins: 0
   });
-  const [activeTab, setActiveTab] = useState('all'); // 'all', 'users', 'vendors'
+  const [activeTab, setActiveTab] = useState('all'); // 'all', 'users', 'vendors', 'admins'
   const [error, setError] = useState(null);
+  const [processingAction, setProcessingAction] = useState(false);
+  const [currentAdmin, setCurrentAdmin] = useState({ name: 'Admin', email: 'admin@system.com' }); // You should get this from auth context
 
   useEffect(() => {
-    loadUsersAndVendors();
+    loadAllData();
   }, []);
 
-  const loadUsersAndVendors = async () => {
+  const loadAllData = async () => {
     setLoading(true);
     setError(null);
     try {
-      console.log('🔍 Loading users and vendors from separate collections...');
+      console.log('🔍 Loading users, vendors, and admins from separate collections...');
       
-      // Load both users and vendors separately for better debugging
-      const [usersList, vendorsList] = await Promise.all([
+      // Load all collections
+      const [usersList, vendorsList, adminsList] = await Promise.all([
         getAllUsers(),
-        getAllVendors()
+        getAllVendors(),
+        getAllAdmins()
       ]);
       
-      console.log('📊 Raw Users Data:', usersList);
-      console.log('📊 Raw Vendors Data:', vendorsList);
+      console.log('📊 Raw Users Data:', usersList.length);
+      console.log('📊 Raw Vendors Data:', vendorsList.length);
+      console.log('📊 Raw Admins Data:', adminsList.length);
       
-      // Ensure each account has proper userType
+      // Process users
       const processedUsers = usersList.map(user => ({
         ...user,
         userType: 'user',
         accountDisplay: '👤 User'
       }));
       
+      // Process vendors
       const processedVendors = vendorsList.map(vendor => ({
         ...vendor,
         userType: 'vendor',
-        accountDisplay: '🏢 Active Vendor'
+        accountDisplay: vendor.vendorStatus === 'approved' || vendor.vendorApproved ? '🏢 Active Vendor' : '🏢 Pending Vendor',
+        vendorStatus: vendor.vendorStatus || (vendor.vendorApproved ? 'approved' : 'pending')
+      }));
+      
+      // Process admins - but we need to know their original type (user or vendor)
+      const processedAdmins = adminsList.map(admin => ({
+        ...admin,
+        name: admin.name || 'Admin',
+        email: admin.email || '',
+        userType: 'admin',
+        originalUserType: admin.originalUserType || 'user', // Track if they were user or vendor
+        accountDisplay: '👑 Admin',
+        role: admin.role || 'admin',
+        uid: admin.uid || admin.adminKey
       }));
       
       const allAccounts = [...processedUsers, ...processedVendors];
-      console.log(`✅ Total accounts: ${allAccounts.length}`);
       
       setUsers(allAccounts);
+      setAdmins(processedAdmins);
       
       // Calculate stats
       const regularUsers = allAccounts.filter(account => account.userType === 'user');
       const vendorUsers = allAccounts.filter(account => account.userType === 'vendor');
       
-      calculateStats(regularUsers, vendorUsers);
+      calculateStats(regularUsers, vendorUsers, processedAdmins);
 
     } catch (error) {
       console.error("❌ Error loading data:", error);
@@ -82,7 +106,7 @@ export default function Users() {
     }
   };
 
-  const calculateStats = (regularUsers, vendorUsers) => {
+  const calculateStats = (regularUsers, vendorUsers, adminUsers) => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
@@ -103,7 +127,7 @@ export default function Users() {
     });
 
     const activeVendors = vendorUsers.filter(vendor => 
-      vendor.vendorStatus === 'active' || vendor.vendorApproved === true
+      vendor.vendorStatus === 'approved' || vendor.vendorApproved === true
     );
 
     setStats({
@@ -111,8 +135,91 @@ export default function Users() {
       today: todayUsers.length,
       active: activeUsers.length,
       vendors: vendorUsers.length,
-      activeVendors: activeVendors.length
+      activeVendors: activeVendors.length,
+      admins: adminUsers.length
     });
+  };
+
+  const handleMakeAdmin = async (user) => {
+    if (!window.confirm(`Are you sure you want to make ${user.name || user.email} an admin?`)) {
+      return;
+    }
+
+    setProcessingAction(true);
+    try {
+      const result = await addAdmin({
+        uid: user.uid,
+        email: user.email,
+        name: user.name,
+        originalUserType: user.userType, // Store whether they were user or vendor
+        role: 'admin',
+        createdBy: 'admin'
+      });
+
+      if (result.success) {
+        // Log to history
+        await logHistoryAction({
+          entity: 'admin',
+          entityId: result.adminKey,
+          action: 'make_admin',
+          changedBy: currentAdmin.name,
+          userEmail: user.email,
+          details: `Made ${user.name || user.email} an admin (Original type: ${user.userType})`,
+          newValue: { 
+            role: 'admin', 
+            name: user.name, 
+            email: user.email,
+            originalUserType: user.userType 
+          }
+        });
+        
+        alert(`✅ ${user.name || user.email} has been made an admin successfully!`);
+        await loadAllData(); // Reload data
+      } else {
+        alert(`❌ Failed to make admin: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error making admin:', error);
+      alert('❌ Error making admin. Please try again.');
+    } finally {
+      setProcessingAction(false);
+      setSelectedUser(null);
+    }
+  };
+
+  const handleRemoveAdmin = async (admin) => {
+    if (!window.confirm(`Are you sure you want to remove admin privileges from ${admin.name || admin.email}? They will become a regular ${admin.originalUserType || 'user'} again.`)) {
+      return;
+    }
+
+    setProcessingAction(true);
+    try {
+      const success = await removeAdmin(admin.adminKey);
+      
+      if (success) {
+        // Log to history
+        await logHistoryAction({
+          entity: 'admin',
+          entityId: admin.adminKey,
+          action: 'remove_admin',
+          changedBy: currentAdmin.name,
+          userEmail: admin.email,
+          details: `Removed admin privileges from ${admin.name || admin.email}. They are now a regular ${admin.originalUserType || 'user'}.`,
+          oldValue: { role: 'admin', ...admin }
+        });
+        
+        alert(`✅ Admin privileges removed from ${admin.name || admin.email}. They are now a regular ${admin.originalUserType || 'user'} again.`);
+        await loadAllData(); // Reload data
+      } else {
+        alert('❌ Failed to remove admin privileges');
+      }
+    } catch (error) {
+      console.error('Error removing admin:', error);
+      alert('❌ Error removing admin. Please try again.');
+    } finally {
+      setProcessingAction(false);
+      setSelectedUser(null);
+    }
   };
 
   const formatDate = (dateString) => {
@@ -169,12 +276,20 @@ export default function Users() {
   const getAccountTypeBadge = (user) => {
     if (!user) return <span className="account-badge unknown">❓ Unknown</span>;
     
+    if (user.userType === 'admin') {
+      return <span className="account-badge admin-badge">👑 Admin</span>;
+    }
+    
     if (user.userType === 'user') {
       return <span className="account-badge user-badge">👤 User</span>;
     }
     
     if (user.userType === 'vendor') {
-      return <span className="account-badge vendor-active">🏢 Active Vendor</span>;
+      if (user.vendorStatus === 'approved' || user.vendorApproved) {
+        return <span className="account-badge vendor-active">🏢 Active Vendor</span>;
+      } else {
+        return <span className="account-badge vendor-pending">⏳ Pending Vendor</span>;
+      }
     }
     
     return <span className="account-badge unknown">❓ Unknown</span>;
@@ -188,6 +303,8 @@ export default function Users() {
         return users.filter(user => user.userType === 'user');
       case 'vendors':
         return users.filter(user => user.userType === 'vendor');
+      case 'admins':
+        return admins;
       default:
         return users;
     }
@@ -201,10 +318,11 @@ export default function Users() {
     }
 
     const csvContent = [
-      ['User ID', 'Type', 'Name', 'Email', 'Phone', 'Country Code', 'Country', 'State', 'City', 'Pincode', 'User Status', 'Vendor Status', 'GST No', 'Registered By', 'Account Created', 'Last Login'],
+      ['User ID', 'Type', 'Original Type', 'Name', 'Email', 'Phone', 'Country Code', 'Country', 'State', 'City', 'Pincode', 'User Status', 'Vendor Status', 'Admin Role', 'GST No', 'Registered By', 'Account Created', 'Last Login'],
       ...filteredUsers.map(user => [
-        user.userKey || user.vendorKey || user.uid || '',
-        user.userType === 'vendor' ? 'Vendor' : 'User',
+        user.userKey || user.vendorKey || user.adminKey || user.uid || '',
+        user.userType === 'vendor' ? 'Vendor' : (user.userType === 'admin' ? 'Admin' : 'User'),
+        user.originalUserType || 'N/A',
         user.name || '',
         user.email || '',
         user.phone || '',
@@ -214,7 +332,8 @@ export default function Users() {
         user.city || '',
         user.pincode || '',
         getUserStatus(user),
-        user.userType === 'vendor' ? 'Active' : 'N/A',
+        user.userType === 'vendor' ? (user.vendorStatus || (user.vendorApproved ? 'approved' : 'pending')) : 'N/A',
+        user.userType === 'admin' ? (user.role || 'admin') : 'N/A',
         user.userType === 'vendor' ? (user.gstNo || '') : '',
         user.userType === 'vendor' ? (user.registeredBy || '') : '',
         formatDate(user.createdAt),
@@ -235,6 +354,11 @@ export default function Users() {
     alert(`✅ Exported ${filteredUsers.length} ${activeTab} to CSV file!`);
   };
 
+  const canMakeAdmin = (user) => {
+    // Check if user exists and is not already an admin
+    return user && user.userType !== 'admin' && user.email;
+  };
+
   return (
     <div className="users-container admin-content">
       {/* Header Section */}
@@ -245,8 +369,8 @@ export default function Users() {
             Users & Vendors Management
           </h1>
           <p className="users-subtitle">
-            Manage and monitor all registered users and vendors in real-time
-            <span className="user-count">{users.length} total accounts</span>
+            Manage and monitor all registered users, vendors, and admins in real-time
+            <span className="user-count">{users.length + admins.length} total accounts</span>
           </p>
         </div>
         <div className="header-stats">
@@ -266,6 +390,15 @@ export default function Users() {
             <div>
               <div className="stat-value">{stats.vendors}</div>
               <div className="stat-label">Vendors</div>
+            </div>
+          </div>
+          <div className="header-stat-card">
+            <div className="stat-icon-small">
+              <FiShield />
+            </div>
+            <div>
+              <div className="stat-value">{stats.admins}</div>
+              <div className="stat-label">Admins</div>
             </div>
           </div>
         </div>
@@ -340,6 +473,12 @@ export default function Users() {
         >
           <FiBriefcase /> Vendors ({users.filter(u => u && u.userType === 'vendor').length})
         </button>
+        <button 
+          className={`tab-btn ${activeTab === 'admins' ? 'active' : ''}`}
+          onClick={() => setActiveTab('admins')}
+        >
+          <FiShield /> Admins ({admins.length})
+        </button>
       </div>
 
       {/* Toolbar with Export and Refresh */}
@@ -348,7 +487,7 @@ export default function Users() {
           <button
             className="export-btn"
             onClick={exportUsersToCSV}
-            disabled={getFilteredUsers().length === 0}
+            disabled={getFilteredUsers().length === 0 || processingAction}
           >
             <FiDownload /> Export CSV
           </button>
@@ -356,7 +495,8 @@ export default function Users() {
         <div className="toolbar-right">
           <button
             className="refresh-btn"
-            onClick={loadUsersAndVendors}
+            onClick={loadAllData}
+            disabled={processingAction}
           >
             <FiRefreshCw /> Refresh Data
           </button>
@@ -368,24 +508,26 @@ export default function Users() {
         {loading ? (
           <div className="loading-state">
             <div className="loader"></div>
-            <p>Loading users and vendors from Firebase...</p>
-            <small>Checking collections: users, vendors</small>
+            <p>Loading users, vendors, and admins from Firebase...</p>
+            <small>Checking collections: users, vendors, admin</small>
           </div>
         ) : error ? (
           <div className="error-state">
             <FiAlertCircle size={48} />
             <h3>Error Loading Data</h3>
             <p>{error}</p>
-            <button onClick={loadUsersAndVendors} className="refresh-btn">
+            <button onClick={loadAllData} className="refresh-btn">
               <FiRefreshCw /> Try Again
             </button>
           </div>
         ) : getFilteredUsers().length === 0 ? (
           <div className="empty-state">
-            {activeTab === 'users' ? <FiUser size={48} /> : <FiBriefcase size={48} />}
+            {activeTab === 'users' ? <FiUser size={48} /> : 
+             activeTab === 'vendors' ? <FiBriefcase size={48} /> : 
+             activeTab === 'admins' ? <FiShield size={48} /> : <FiUsers size={48} />}
             <h3>No {activeTab} found</h3>
-            <p>No {activeTab} have registered yet</p>
-            <button onClick={loadUsersAndVendors} className="refresh-btn">
+            <p>No {activeTab} have been registered yet</p>
+            <button onClick={loadAllData} className="refresh-btn">
               <FiRefreshCw /> Refresh
             </button>
           </div>
@@ -405,14 +547,14 @@ export default function Users() {
                   <th>Contact</th>
                   <th>Location</th>
                   <th>User Status</th>
-                  <th>Vendor Status</th>
+                  <th>Vendor/Admin Status</th>
                   <th>Joined</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {getFilteredUsers().map((user) => (
-                  <tr key={user.userKey || user.vendorKey || user.uid || Math.random()} className="user-row">
+                {(activeTab === 'admins' ? admins : getFilteredUsers()).map((user) => (
+                  <tr key={user.userKey || user.vendorKey || user.adminKey || user.uid || Math.random()} className="user-row">
                     <td className="account-type-cell">
                       {getAccountTypeBadge(user)}
                     </td>
@@ -456,8 +598,16 @@ export default function Users() {
                     </td>
                     <td>
                       {user.userType === 'vendor' ? (
-                        <div className="vendor-status active">
-                          <FiCheckCircle /> Active
+                        <div className={`vendor-status ${user.vendorStatus === 'approved' || user.vendorApproved ? 'active' : 'pending'}`}>
+                          {user.vendorStatus === 'approved' || user.vendorApproved ? (
+                            <><FiCheckCircle /> Active Vendor</>
+                          ) : (
+                            <><FiAlertCircle /> Pending</>
+                          )}
+                        </div>
+                      ) : user.userType === 'admin' ? (
+                        <div className="admin-status">
+                          <FiStar /> {user.role || 'Admin'}
                         </div>
                       ) : (
                         <div className="vendor-status not-vendor">
@@ -482,6 +632,30 @@ export default function Users() {
                         >
                           <FiEye /> View
                         </button>
+                        
+                        {/* Make Admin button for non-admin users */}
+                        {user.userType !== 'admin' && canMakeAdmin(user) && (
+                          <button
+                            className="make-admin-btn"
+                            onClick={() => handleMakeAdmin(user)}
+                            title="Make Admin"
+                            disabled={processingAction}
+                          >
+                            <FiUserPlus /> Make Admin
+                          </button>
+                        )}
+                        
+                        {/* Remove Admin button for admin users - they become regular users again, not deleted */}
+                        {user.userType === 'admin' && user.adminKey && (
+                          <button
+                            className="remove-admin-btn"
+                            onClick={() => handleRemoveAdmin(user)}
+                            title="Remove Admin (becomes regular user)"
+                            disabled={processingAction}
+                          >
+                            <FiUserMinus /> Remove Admin
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -492,13 +666,14 @@ export default function Users() {
         )}
       </div>
 
-      {/* User/Vendor Details Modal */}
+      {/* User/Vendor/Admin Details Modal */}
       {selectedUser && (
         <div className="modal-overlay" onClick={() => setSelectedUser(null)}>
           <div className="modal-content user-details-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2 className="modal-title">
-                {selectedUser.userType === 'vendor' ? 'Vendor Details' : 'User Details'}
+                {selectedUser.userType === 'vendor' ? 'Vendor Details' : 
+                 selectedUser.userType === 'admin' ? 'Admin Details' : 'User Details'}
                 {getAccountTypeBadge(selectedUser)}
               </h2>
               <button
@@ -510,8 +685,10 @@ export default function Users() {
             </div>
 
             <div className="user-id-section">
-              <div className="user-id-label">UID:</div>
-              <div className="user-id-value">{selectedUser.uid || selectedUser.userKey || selectedUser.vendorKey || "N/A"}</div>
+              <div className="user-id-label">UID / Key:</div>
+              <div className="user-id-value">
+                {selectedUser.uid || selectedUser.userKey || selectedUser.vendorKey || selectedUser.adminKey || "N/A"}
+              </div>
             </div>
 
             <div className="modal-body">
@@ -537,9 +714,18 @@ export default function Users() {
                     <div className="detail-row">
                       <span className="detail-label">Account Type:</span>
                       <span className="detail-value">
-                        {selectedUser.userType === 'vendor' ? 'Vendor' : 'Regular User'}
+                        {selectedUser.userType === 'vendor' ? 'Vendor' : 
+                         selectedUser.userType === 'admin' ? 'Admin' : 'Regular User'}
                       </span>
                     </div>
+                    {selectedUser.userType === 'admin' && selectedUser.originalUserType && (
+                      <div className="detail-row">
+                        <span className="detail-label">Original Type:</span>
+                        <span className="detail-value">
+                          {selectedUser.originalUserType === 'vendor' ? 'Vendor' : 'Regular User'}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -589,14 +775,41 @@ export default function Users() {
                       <div className="detail-row">
                         <span className="detail-label">Vendor Status:</span>
                         <span className="detail-value">
-                          <span className="vendor-status-indicator approved">
-                            ✅ Active
+                          <span className={`vendor-status-indicator ${selectedUser.vendorStatus === 'approved' || selectedUser.vendorApproved ? 'approved' : 'pending'}`}>
+                            {selectedUser.vendorStatus === 'approved' || selectedUser.vendorApproved ? '✅ Active' : '⏳ Pending'}
                           </span>
                         </span>
                       </div>
                       <div className="detail-row">
                         <span className="detail-label">Vendor ID:</span>
                         <span className="detail-value">{selectedUser.vendorKey || "N/A"}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {selectedUser.userType === 'admin' && (
+                  <div className="details-section">
+                    <div className="section-header">
+                      <FiShield className="section-icon" />
+                      <h3 className="section-title">Admin Information</h3>
+                    </div>
+                    <div className="section-content">
+                      <div className="detail-row">
+                        <span className="detail-label">Admin Role:</span>
+                        <span className="detail-value">{selectedUser.role || 'Admin'}</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Admin Key:</span>
+                        <span className="detail-value">{selectedUser.adminKey || "N/A"}</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Original Type:</span>
+                        <span className="detail-value">{selectedUser.originalUserType === 'vendor' ? 'Vendor' : 'Regular User'}</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Created By:</span>
+                        <span className="detail-value">{selectedUser.createdBy || 'system'}</span>
                       </div>
                     </div>
                   </div>
@@ -635,6 +848,29 @@ export default function Users() {
             </div>
 
             <div className="modal-footer">
+              <div className="vendor-actions">
+                {/* Make Admin button for non-admin users in modal */}
+                {selectedUser.userType !== 'admin' && canMakeAdmin(selectedUser) && (
+                  <button
+                    className="btn-approve"
+                    onClick={() => handleMakeAdmin(selectedUser)}
+                    disabled={processingAction}
+                  >
+                    <FiUserPlus /> Make Admin
+                  </button>
+                )}
+                
+                {/* Remove Admin button for admin users in modal */}
+                {selectedUser.userType === 'admin' && selectedUser.adminKey && (
+                  <button
+                    className="btn-reject"
+                    onClick={() => handleRemoveAdmin(selectedUser)}
+                    disabled={processingAction}
+                  >
+                    <FiUserMinus /> Remove Admin
+                  </button>
+                )}
+              </div>
               <button
                 className="btn-secondary-blue"
                 onClick={() => setSelectedUser(null)}

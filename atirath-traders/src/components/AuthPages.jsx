@@ -7,7 +7,7 @@ import {
   updateProfile,
   signOut
 } from 'firebase/auth';
-import { storeUserOrVendorProfile, auth, getUserProfile, updateLastLogin } from '../firebase';
+import { storeUserOrVendorProfile, auth, getUserProfile, updateLastLogin, checkIsAdmin } from '../firebase';
 
 // Import ForgotPassword component
 import ForgotPassword from './ForgotPassword';
@@ -29,26 +29,12 @@ const SignIn = ({ onNavigate, onSignIn, onClose, preFilledEmail = '' }) => {
       [e.target.name]: e.target.value
     });
   };
-  
-  const ADMIN_EMAIL = "admin@atirath.com"; 
-  const ADMIN_PASSWORD = "Admin@123";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setDebugInfo('Starting sign in process...');
 
-    // 1️⃣ HARD-CODED ADMIN LOGIN
-    if (formData.email === ADMIN_EMAIL && formData.password === ADMIN_PASSWORD) {
-      console.log("Admin login: success");
-      setSignInSuccess(true);
-      setTimeout(() => {
-        window.location.href = "/admin";
-      }, 1500);
-      return;
-    }
-
-    // 2️⃣ NORMAL USER LOGIN (FIREBASE)
     try {
       const userCredential = await signInWithEmailAndPassword(
         auth,
@@ -60,7 +46,35 @@ const SignIn = ({ onNavigate, onSignIn, onClose, preFilledEmail = '' }) => {
       console.log('🔵 User authenticated:', user.uid);
       setDebugInfo(`User authenticated: ${user.uid}`);
       
-      // Fetch user profile from Firebase
+      // Check if user is admin (from admin node in Realtime Database)
+      console.log('🔄 Checking if user is admin...');
+      const isAdmin = await checkIsAdmin(user.uid, user.email);
+      
+      if (isAdmin) {
+        console.log('👑 Admin user detected, redirecting to admin panel...');
+        setDebugInfo('Admin user detected, redirecting to admin panel');
+        
+        setSignInSuccess(true);
+        
+        // Create minimal admin data
+        const adminData = {
+          uid: user.uid,
+          name: 'Admin',
+          email: user.email,
+          userType: 'admin'
+        };
+        
+        // Call onSignIn to update parent state
+        onSignIn(adminData);
+        
+        setTimeout(() => {
+          window.location.href = "/admin";
+        }, 1500);
+        
+        return;
+      }
+      
+      // Fetch user profile from Firebase for regular users/vendors
       console.log('🔄 Fetching user profile from Firebase...');
       const userDB = await getUserProfile(user.uid);
       
@@ -245,7 +259,7 @@ const SignIn = ({ onNavigate, onSignIn, onClose, preFilledEmail = '' }) => {
                 </div>
                 <h3 className="text-white mb-3">Sign In Successful!</h3>
                 <p className="text-white opacity-80">
-                  Welcome back! Redirecting to home page...
+                  Welcome back! Redirecting...
                 </p>
                 {debugInfo && (
                   <div className="debug-info mt-3 p-2 rounded" style={{ background: 'rgba(0,0,0,0.3)', fontSize: '0.8rem' }}>
@@ -430,7 +444,7 @@ const SignIn = ({ onNavigate, onSignIn, onClose, preFilledEmail = '' }) => {
   );
 };
 
-// SignUp component with User/Vendor options - UPDATED with text input for country
+// SignUp component remains exactly the same as before
 const SignUp = ({ onNavigate, onSignUp, onClose }) => {
   const [userType, setUserType] = useState('user');
   const [formData, setFormData] = useState({

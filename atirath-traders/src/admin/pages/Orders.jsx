@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { database, ref, onValue, update } from "../../firebase";
+import { database, ref, onValue, update, logHistoryAction } from "../../firebase";
 import { 
   FiSearch, 
   FiCalendar, 
@@ -36,6 +36,7 @@ export default function Orders() {
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [expandedOrder, setExpandedOrder] = useState(null);
+  const [currentAdmin, setCurrentAdmin] = useState({ name: 'Admin', email: 'admin@system.com' }); // You should get this from auth context
   const [stats, setStats] = useState({
     total: 0,
     today: 0,
@@ -300,11 +301,27 @@ export default function Orders() {
     setUpdatingStatus(true);
     try {
       const orderRef = ref(database, `quotes/${orderId}`);
+      
+      // Get current order status before updating
+      const currentOrder = orders.find(o => o.id === orderId);
+      const oldStatus = currentOrder?.status || 'pending';
 
       await update(orderRef, {
         status: newStatus.toLowerCase(),
         updatedAt: new Date().toISOString(),
         updatedBy: "admin"
+      });
+      
+      // Log to history
+      await logHistoryAction({
+        entity: 'order',
+        entityId: orderId,
+        action: 'status_change',
+        changedBy: currentAdmin.name,
+        userEmail: currentOrder?.email,
+        details: `Changed order status from ${oldStatus} to ${newStatus}`,
+        oldValue: { status: oldStatus },
+        newValue: { status: newStatus }
       });
       
       setOrders(prevOrders => 
