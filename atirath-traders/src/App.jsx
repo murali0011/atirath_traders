@@ -44,14 +44,14 @@ import Dashboard from './admin/pages/Dashboard';
 import Users from './admin/pages/Users';
 import Products from './admin/pages/Products';
 import Orders from './admin/pages/Orders';
-import History from './admin/pages/History';
+import History from './admin/pages/History'; // NEW: Import History component
 import { CartProvider } from './components/CartContext';
 
 /* --------------------------------------------------------------------
-   Page Components - WITHOUT Footer (Footer will be handled by layout)
+   Dedicated page components
    -------------------------------------------------------------------- */
 const HomePage = ({ onServiceClick, onViewAllClick }) => (
-  <>
+  <div id="home-page">
     <Hero />
     <About id="about" />
     <Leadership id="leadership" />
@@ -61,87 +61,100 @@ const HomePage = ({ onServiceClick, onViewAllClick }) => (
       onViewAllClick={onViewAllClick}
     />
     <Feedback id="feedback" />
-  </>
+    <Footer id="contact" />
+  </div>
 );
 
 const AboutPage = () => (
-  <>
+  <div>
     <About id="about" />
-  </>
+    <Footer id="contact" />
+  </div>
 );
 
 const LeadershipPage = () => (
-  <>
+  <div>
     <Leadership id="leadership" />
-  </>
+    <Footer id="contact" />
+  </div>
 );
 
 const ProductsPage = ({ onServiceClick, onViewAllClick }) => (
-  <>
+  <div>
     <Services
       id="services"
       onServiceClick={onServiceClick}
       onViewAllClick={onViewAllClick}
     />
-  </>
+    <Footer id="contact" />
+  </div>
 );
 
 const ServicesPageComponent = () => (
-  <>
+  <div>
     <ServicesPage />
-  </>
+    <Footer id="contact" />
+  </div>
 );
 
 const ServiceDetailPageComponent = () => (
-  <>
+  <div>
     <ServiceDetailPage />
-  </>
+    <Footer id="contact" />
+  </div>
 );
 
 const BlogPage = () => (
-  <>
+  <div>
     <Blog id="blog" />
-  </>
+    <Footer id="contact" />
+  </div>
 );
 
 const BlogPostComponent = () => (
-  <>
+  <div>
     <BlogPost />
-  </>
+    <Footer id="contact" />
+  </div>
 );
 
 const JoinUsPage = () => (
-  <>
+  <div>
     <JoinUs />
-  </>
+    <Footer id="contact" />
+  </div>
 );
 
 const FeedbackPage = () => (
-  <>
+  <div>
     <Feedback id="feedback" />
-  </>
+    <Footer id="contact" />
+  </div>
 );
 
 const ContactPage = () => (
-  <>
+  <div>
     <Feedback id="feedback" />
-  </>
+    <Footer id="contact" />
+  </div>
 );
 
 const TermsPolicyPage = () => (
-  <>
+  <div>
     <TermsPolicy />
-  </>
+    <Footer id="contact" />
+  </div>
 );
 
 const TransportPageComponent = () => (
-  <>
+  <div>
     <TransportPage />
-  </>
+    <Footer id="contact" />
+  </div>
 );
 
 const ProductPageComponent = ({ globalSearchQuery, onGlobalSearchClear, isAuthenticated, profile, onNewOrderSubmitted }) => (
-  <>
+  <div>
     <ProductPage
       globalSearchQuery={globalSearchQuery}
       onGlobalSearchClear={onGlobalSearchClear}
@@ -149,34 +162,24 @@ const ProductPageComponent = ({ globalSearchQuery, onGlobalSearchClear, isAuthen
       profile={profile}
       onNewOrderSubmitted={onNewOrderSubmitted}
     />
-  </>
+    <Footer id="contact" />
+  </div>
 );
 
 const AllProductsComponent = ({ onProductClick, onNavigate }) => (
-  <>
+  <div>
     <AllProducts
       onProductClick={onProductClick}
       onNavigate={onNavigate}
     />
-  </>
+    <Footer id="contact" />
+  </div>
 );
 
 /* --------------------------------------------------------------------
-   Layout Component - Handles the footer positioning
+   Router Wrapper
    -------------------------------------------------------------------- */
-const Layout = ({ children, showRSS, showAuthForm }) => {
-  return (
-    <div className="app-layout">
-      {children}
-      {!showAuthForm && <Footer />}
-    </div>
-  );
-};
-
-/* --------------------------------------------------------------------
-   Main App Content with all state and logic
-   -------------------------------------------------------------------- */
-const AppContent = () => {
+const RouterWrapper = () => {
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -654,9 +657,13 @@ const AppContent = () => {
     }
   };
   
+  // FIXED: handleSignUp should NOT automatically sign in the user
   const handleSignUp = async (userData, email) => {
     try {
       console.log('📝 Handling sign up for:', email);
+      
+      // IMPORTANT: DO NOT set authentication state after signup
+      // User should sign in manually
       
       // Show success message
       alert('🎊 Account created successfully! Please sign in to continue.');
@@ -837,101 +844,99 @@ const AppContent = () => {
         {renderAuthOverlay()}
         {renderProfileUpdateSuccess()}
         
-        {/* Page Content with Layout wrapper */}
+        {/* Page Content */}
         {!showAuthForm && (
-          <Layout showRSS={showRSS} showAuthForm={showAuthForm}>
-            <div className="page-content">
-              <Routes>
-                {/* Home Route */}
-                <Route
-                  path="/"
-                  element={
-                    <HomePage
-                      onServiceClick={handleServiceClick}
-                      onViewAllClick={handleViewAllClick}
-                    />
-                  }
-                />
+          <div className="page-content">
+            <Routes>
+              {/* Home Route */}
+              <Route
+                path="/"
+                element={
+                  <HomePage
+                    onServiceClick={handleServiceClick}
+                    onViewAllClick={handleViewAllClick}
+                  />
+                }
+              />
+            
+              {/* Main Pages */}
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/leadership" element={<LeadershipPage />} />
+              <Route
+                path="/products"
+                element={
+                  <ProductsPage
+                    onServiceClick={handleServiceClick}
+                    onViewAllClick={handleViewAllClick}
+                  />
+                }
+              />
+            
+              {/* Services Pages */}
+              <Route path="/services" element={<ServicesPageComponent />} />
+              <Route path="/service-detail/:id" element={<ServiceDetailPageComponent />} />
+            
+              {/* Blog Pages */}
+              <Route path="/blog" element={<BlogPage />} />
+              <Route path="/blog/:id" element={<BlogPostComponent />} />
+            
+              {/* Transport Page */}
+              <Route path="/transport" element={<TransportPageComponent />} />
+            
+              {/* Other Pages */}
+              <Route path="/join-us" element={<JoinUsPage />} />
+              <Route path="/feedback" element={<FeedbackPage />} />
+              <Route path="/contact" element={<ContactPage />} />
+              <Route path="/terms-policy" element={<TermsPolicyPage />} />
               
-                {/* Main Pages */}
-                <Route path="/about" element={<AboutPage />} />
-                <Route path="/leadership" element={<LeadershipPage />} />
-                <Route
-                  path="/products"
-                  element={
-                    <ProductsPage
-                      onServiceClick={handleServiceClick}
-                      onViewAllClick={handleViewAllClick}
-                    />
-                  }
-                />
+              {/* Cart Page */}
+              <Route path="/cart" element={<CartPage />} />
               
-                {/* Services Pages */}
-                <Route path="/services" element={<ServicesPageComponent />} />
-                <Route path="/service-detail/:id" element={<ServiceDetailPageComponent />} />
+              {/* Product Pages */}
+              <Route
+                path="/product/:type"
+                element={
+                  <ProductPageComponent
+                    globalSearchQuery={globalSearchQuery}
+                    onGlobalSearchClear={handleGlobalSearchClear}
+                    isAuthenticated={isAuthenticated}
+                    profile={currentUser}
+                    onNewOrderSubmitted={handleNewOrderSubmitted}
+                  />
+                }
+              />
               
-                {/* Blog Pages */}
-                <Route path="/blog" element={<BlogPage />} />
-                <Route path="/blog/:id" element={<BlogPostComponent />} />
+              <Route
+                path="/all-products"
+                element={
+                  <AllProductsComponent
+                    onProductClick={handleServiceClick}
+                    onNavigate={handleNavbarNavigation}
+                  />
+                }
+              />
+            
+              {/* ADMIN PANEL ROUTES - Updated with History */}
+              <Route path="/admin" element={<AdminLayout />}>
+                <Route index element={<Dashboard />} />
+                <Route path="users" element={<Users />} />
+                <Route path="products" element={<Products />} />
+                <Route path="orders" element={<Orders />} />
+                <Route path="history" element={<History />} /> {/* NEW: History route */}
+              </Route>
               
-                {/* Transport Page */}
-                <Route path="/transport" element={<TransportPageComponent />} />
-              
-                {/* Other Pages */}
-                <Route path="/join-us" element={<JoinUsPage />} />
-                <Route path="/feedback" element={<FeedbackPage />} />
-                <Route path="/contact" element={<ContactPage />} />
-                <Route path="/terms-policy" element={<TermsPolicyPage />} />
-                
-                {/* Cart Page */}
-                <Route path="/cart" element={<CartPage />} />
-                
-                {/* Product Pages */}
-                <Route
-                  path="/product/:type"
-                  element={
-                    <ProductPageComponent
-                      globalSearchQuery={globalSearchQuery}
-                      onGlobalSearchClear={handleGlobalSearchClear}
-                      isAuthenticated={isAuthenticated}
-                      profile={currentUser}
-                      onNewOrderSubmitted={handleNewOrderSubmitted}
-                    />
-                  }
-                />
-                
-                <Route
-                  path="/all-products"
-                  element={
-                    <AllProductsComponent
-                      onProductClick={handleServiceClick}
-                      onNavigate={handleNavbarNavigation}
-                    />
-                  }
-                />
-              
-                {/* ADMIN PANEL ROUTES */}
-                <Route path="/admin" element={<AdminLayout />}>
-                  <Route index element={<Dashboard />} />
-                  <Route path="users" element={<Users />} />
-                  <Route path="products" element={<Products />} />
-                  <Route path="orders" element={<Orders />} />
-                  <Route path="history" element={<History />} />
-                </Route>
-                
-                {/* 404 Fallback */}
-                <Route
-                  path="*"
-                  element={
-                    <HomePage
-                      onServiceClick={handleServiceClick}
-                      onViewAllClick={handleViewAllClick}
-                    />
-                  }
-                />
-              </Routes>
-            </div>
-          </Layout>
+              {/* 404 Fallback */}
+              <Route
+                path="*"
+                element={
+                  <HomePage
+                    onServiceClick={handleServiceClick}
+                    onViewAllClick={handleViewAllClick}
+                  />
+                }
+              />
+            </Routes>
+          </div>
         )}
       </div>
     </CartProvider>
@@ -946,7 +951,7 @@ function App() {
   
   return (
     <BrowserRouter>
-      <AppContent />
+      <RouterWrapper />
     </BrowserRouter>
   );
 }
