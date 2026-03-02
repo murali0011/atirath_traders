@@ -3,18 +3,16 @@ import React, { useState, useEffect, useRef } from "react";
 import ThankYouPopup from "../components/ThankYouPopup";
 import { submitQuote } from "../firebase";
 import {
-  varietyGrades,
-  gradePrices,
-  getPackingOptions,
-  getQuantityOptions,
   transportData,
   getPackingUnit,
-  getAvailableGrades,
   getTransportPrice,
-  getUnitType
+  getUnitType,
+  ricePackingOptions,
+  getQuantityOptionsForProduct,
+  getQuantityUnit
 } from "../data/ProductData";
-import { ShoppingBag, Package, Trash2, Plus, Minus, X, Star, Check } from 'lucide-react';
-import "../styles/form.css"; // Import the CSS file
+import { ShoppingBag, Package, Plus, Minus, X, Check } from 'lucide-react';
+import "../styles/form.css";
 
 const SingleProductBuyModal = ({ isOpen, onClose, product, profile, onOrderSubmitted }) => {
   // State declarations
@@ -55,9 +53,9 @@ const SingleProductBuyModal = ({ isOpen, onClose, product, profile, onOrderSubmi
   const [productType, setProductType] = useState('default');
 
   // ============================================
-  // TRANSPORT MODULE - PROFESSIONAL
+  // TRANSPORT MODULE
   // ============================================
-  const [transportType, setTransportType] = useState(""); // "", "road", "air", "ocean"
+  const [transportType, setTransportType] = useState("");
   
   // Road Transport Fields
   const [pickupLocation, setPickupLocation] = useState({
@@ -96,18 +94,14 @@ const SingleProductBuyModal = ({ isOpen, onClose, product, profile, onOrderSubmi
   
   const [transportPrice, setTransportPrice] = useState("0-0");
 
-  // New state for profile fields - Country is now text input
+  // Profile fields
   const [country, setCountry] = useState("");
   const [state, setState] = useState("");
   const [city, setCity] = useState("");
   const [pincode, setPincode] = useState("");
 
-  // New state to track if profile data has been auto-filled
   const [hasAutoFilled, setHasAutoFilled] = useState(false);
-
-  // New state for product image
   const [productImage, setProductImage] = useState("");
-
   const [orderQuantity, setOrderQuantity] = useState(1);
 
   const modalRef = useRef(null);
@@ -149,6 +143,9 @@ const SingleProductBuyModal = ({ isOpen, onClose, product, profile, onOrderSubmi
     { value: "mini_truck", label: "Mini Truck" }
   ];
 
+  // ============================================
+  // ANALYZE PRODUCT DATA FROM FIREBASE
+  // ============================================
   const analyzeProductData = () => {
     if (!product) return {};
     console.log("📦 Raw Product Data:", product);
@@ -169,8 +166,7 @@ const SingleProductBuyModal = ({ isOpen, onClose, product, profile, onOrderSubmi
       priceValue = product["Ex-Mill_usd"];
       currencyDetected = "USD";
       priceDisplay = `$${priceValue} EX-MILL per carton`;
-    } 
-    else if (product.price && typeof product.price === 'object') {
+    } else if (product.price && typeof product.price === 'object') {
       if (product.price.min !== undefined && product.price.max !== undefined) {
         priceValue = (product.price.min + product.price.max) / 2 / 100;
         currencyDetected = "INR";
@@ -208,7 +204,7 @@ const SingleProductBuyModal = ({ isOpen, onClose, product, profile, onOrderSubmi
 
     if (product.grades && Array.isArray(product.grades) && product.grades.length > 0) {
       grades = product.grades.map(grade => ({
-        value: grade.grade || grade.name || grade.type || "Standard",
+        value: grade.grade || grade.name || "Standard",
         price: grade.price_inr || grade.price || "1.00",
         currency: grade.currency || currencyDetected
       }));
@@ -254,6 +250,9 @@ const SingleProductBuyModal = ({ isOpen, onClose, product, profile, onOrderSubmi
     };
   };
 
+  // ============================================
+  // GET PRODUCT TYPE
+  // ============================================
   const getProductType = () => {
     if (!product) return 'default';
 
@@ -306,86 +305,103 @@ const SingleProductBuyModal = ({ isOpen, onClose, product, profile, onOrderSubmi
     return 'default';
   };
 
-  const getQuantityOptionsFromProduct = () => {
-    const analysis = analyzeProductData();
-    const productName = product?.name?.toLowerCase() || '';
-
-    const isCartonBased = product?.price_usd_per_carton ||
-      product?.fob_price_usd ||
-      product?.["Ex-Mill_usd"] ||
-      (product?.packaging && product.packaging.units_per_carton);
-
-    if (isCartonBased) {
-      const unitsPerCarton = product?.packaging?.units_per_carton || 48;
-      return [
-        { value: "1", label: `1 Carton (${unitsPerCarton} units)`, multiplier: 1, unit: "cartons", actualQuantity: 1, actualUnit: "cartons" },
-        { value: "5", label: `5 Cartons (${unitsPerCarton * 5} units)`, multiplier: 5, unit: "cartons", actualQuantity: 5, actualUnit: "cartons" },
-        { value: "10", label: `10 Cartons (${unitsPerCarton * 10} units)`, multiplier: 10, unit: "cartons", actualQuantity: 10, actualUnit: "cartons" },
-        { value: "20", label: `20 Cartons (${unitsPerCarton * 20} units)`, multiplier: 20, unit: "cartons", actualQuantity: 20, actualUnit: "cartons" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "cartons", actualQuantity: 0, actualUnit: "cartons" }
-      ];
-    }
-
-    if (analysis.productType === 'rice') {
-      return [
-        { value: "1", label: "1 kg", multiplier: 1, unit: "kg", actualQuantity: 1, actualUnit: "kg" },
-        { value: "5", label: "5 kg", multiplier: 5, unit: "kg", actualQuantity: 5, actualUnit: "kg" },
-        { value: "10", label: "10 kg", multiplier: 10, unit: "kg", actualQuantity: 10, actualUnit: "kg" },
-        { value: "25", label: "25 kg", multiplier: 25, unit: "kg", actualQuantity: 25, actualUnit: "kg" },
-        { value: "50", label: "50 kg", multiplier: 50, unit: "kg", actualQuantity: 50, actualUnit: "kg" },
-        { value: "custom", label: "Custom Quantity", multiplier: 1, unit: "kg", actualQuantity: 0, actualUnit: "kg" }
-      ];
-    }
-
-    let options = getQuantityOptions(analysis.productType, productName);
-    return options;
-  };
-
+  // ============================================
+  // UPDATED: GET PACKING OPTIONS - ONLY FROM FIREBASE + RICE FALLBACK
+  // ============================================
   const getPackingOptionsFromProduct = () => {
+    if (!product) return [];
+    
     const analysis = analyzeProductData();
-    const productType = analysis.productType;
-    const productName = product?.name?.toLowerCase() || '';
-
-    if (productType === 'rice') {
-      return getPackingOptions('rice', productName);
+    const isRice = analysis.productType === 'rice' || 
+                   product?.name?.toLowerCase().includes('rice') ||
+                   product?.companyName?.toLowerCase().includes('siea');
+    
+    // For rice products, use ricePackingOptions from ProductData
+    if (isRice) {
+      return ricePackingOptions.map(option => ({
+        value: option.value,
+        price: option.price || "0"
+      }));
     }
-
-    let firebasePacking = "";
-
+    
+    // For non-rice products, ONLY use Firebase data
     if (product?.pack_type) {
-      firebasePacking = product.pack_type;
-    } else if (product?.packaging) {
+      return [
+        { value: product.pack_type, price: "0" }
+      ];
+    }
+    
+    if (product?.packaging) {
       if (typeof product.packaging === 'string') {
-        firebasePacking = product.packaging;
-      } else if (typeof product.packaging === 'object' && product.packaging.type) {
-        firebasePacking = product.packaging.type;
+        return [
+          { value: product.packaging, price: "0" }
+        ];
+      }
+      if (typeof product.packaging === 'object') {
+        if (product.packaging.type) {
+          return [
+            { value: product.packaging.type, price: "0" }
+          ];
+        }
+        if (product.packaging.units_per_carton) {
+          const display = product.packaging.unit_weight_ml 
+            ? `${product.packaging.units_per_carton} × ${product.packaging.unit_weight_ml} ml`
+            : product.packaging.unit_weight_g
+              ? `${product.packaging.units_per_carton} × ${product.packaging.unit_weight_g} g`
+              : `${product.packaging.units_per_carton} units/carton`;
+          return [
+            { value: display, price: "0" }
+          ];
+        }
       }
     }
-
-    if (firebasePacking) {
-      return [
-        { value: firebasePacking, price: "0" }
-      ];
-    }
-
-    return getPackingOptions(productType, productName);
-  };
-
-  const getGradesFromProduct = () => {
-    const analysis = analyzeProductData();
-
-    if (analysis.hasGrades && analysis.grades.length > 0) {
-      return analysis.grades;
-    }
-
-    const productType = analysis.productType;
-    if (productType === 'rice') {
-      return getAvailableGrades(productType, product);
-    }
-
+    
     return [];
   };
 
+  // ============================================
+  // UPDATED: GET QUANTITY OPTIONS - ONLY from ProductData.js
+  // ============================================
+  const getQuantityOptionsFromProduct = () => {
+    if (!product) return [];
+    
+    // Directly use the centralized function from ProductData
+    return getQuantityOptionsForProduct(product);
+  };
+
+  // ============================================
+  // UPDATED: GET QUANTITY UNIT - ONLY from ProductData.js
+  // ============================================
+  const getQuantityUnitFromProductData = (product) => {
+    return getQuantityUnit(product);
+  };
+
+  // ============================================
+  // UPDATED: GET GRADES - ONLY FROM FIREBASE
+  // ============================================
+  const getGradesFromProduct = () => {
+    if (!product) return [];
+    
+    const analysis = analyzeProductData();
+    
+    if (analysis.hasGrades && analysis.grades.length > 0) {
+      return analysis.grades;
+    }
+    
+    if (product?.grades && Array.isArray(product.grades) && product.grades.length > 0) {
+      return product.grades.map(grade => ({
+        value: grade.grade || grade.name || "Standard",
+        price: grade.price_inr || grade.price || "0",
+        label: `${grade.grade || grade.name || "Standard"} - ₹${grade.price_inr || grade.price || "0"}/kg`
+      }));
+    }
+    
+    return [];
+  };
+
+  // ============================================
+  // UTILITY FUNCTIONS
+  // ============================================
   const getCurrencySymbol = () => {
     const selectedCurrency = currencyOptions.find(curr => curr.value === currency);
     return selectedCurrency ? selectedCurrency.symbol : "$";
@@ -424,6 +440,18 @@ const SingleProductBuyModal = ({ isOpen, onClose, product, profile, onOrderSubmi
     return price;
   };
 
+  const getQuantityUnit = () => {
+    return getQuantityUnitFromProductData(product);
+  };
+
+  const getProductOrigin = () => {
+    const analysis = analyzeProductData();
+    return analysis.origin;
+  };
+
+  // ============================================
+  // CALCULATION FUNCTIONS
+  // ============================================
   const calculateQuantityPrice = (quantityValue, gradeMultiplier, customQty = null) => {
     const pricePerUnit = getPricePerUnit();
     const analysis = analyzeProductData();
@@ -510,7 +538,6 @@ const SingleProductBuyModal = ({ isOpen, onClose, product, profile, onOrderSubmi
 
     if (actualQuantity <= 0) return 0;
 
-    // Base transport rates (simplified for demo)
     const baseRates = {
       road: 5,
       air: 50,
@@ -598,6 +625,9 @@ const SingleProductBuyModal = ({ isOpen, onClose, product, profile, onOrderSubmi
     };
   };
 
+  // ============================================
+  // VALIDATION FUNCTIONS
+  // ============================================
   const validatePhoneNumber = (number, code) => {
     const selectedCountry = countryOptions.find((opt) => opt.value === code);
     const expectedLength = selectedCountry?.length || 10;
@@ -631,6 +661,9 @@ const SingleProductBuyModal = ({ isOpen, onClose, product, profile, onOrderSubmi
     }
   };
 
+  // ============================================
+  // HANDLER FUNCTIONS
+  // ============================================
   const handleCountryChange = (e) => {
     const newCode = e.target.value;
     setCountryCode(newCode);
@@ -665,7 +698,6 @@ const SingleProductBuyModal = ({ isOpen, onClose, product, profile, onOrderSubmi
     const newCountry = e.target.value;
     setCountry(newCountry);
     
-    // If country is not India, and road transport is selected, reset it
     if (newCountry && newCountry.toLowerCase() !== 'india' && transportType === 'road') {
       setTransportType('');
     }
@@ -716,14 +748,10 @@ const SingleProductBuyModal = ({ isOpen, onClose, product, profile, onOrderSubmi
     setBrandingRequired(e.target.value);
   };
 
-  // ============================================
-  // TRANSPORT TYPE HANDLERS
-  // ============================================
   const handleTransportTypeChange = (e) => {
     setTransportType(e.target.value);
   };
 
-  // Road Transport Handlers
   const handlePickupLocationChange = (field, value) => {
     setPickupLocation(prev => ({ ...prev, [field]: value }));
   };
@@ -732,7 +760,6 @@ const SingleProductBuyModal = ({ isOpen, onClose, product, profile, onOrderSubmi
     setDeliveryLocation(prev => ({ ...prev, [field]: value }));
   };
 
-  // Air Transport Handlers
   const handleAirportLoadingChange = (field, value) => {
     setAirportOfLoading(prev => ({ ...prev, [field]: value }));
   };
@@ -741,7 +768,6 @@ const SingleProductBuyModal = ({ isOpen, onClose, product, profile, onOrderSubmi
     setAirportOfDestination(prev => ({ ...prev, [field]: value }));
   };
 
-  // Ocean Transport Handlers
   const handlePortOfLoadingChange = (field, value) => {
     setPortOfLoading(prev => ({ ...prev, [field]: value }));
   };
@@ -758,39 +784,6 @@ const SingleProductBuyModal = ({ isOpen, onClose, product, profile, onOrderSubmi
     if (orderQuantity > 1) {
       setOrderQuantity(prev => prev - 1);
     }
-  };
-
-  const getQuantityUnit = () => {
-    const analysis = analyzeProductData();
-
-    const isCartonBased = product?.price_usd_per_carton ||
-      product?.fob_price_usd ||
-      product?.["Ex-Mill_usd"];
-
-    if (isCartonBased) {
-      return "cartons";
-    }
-
-    const productType = analysis.productType;
-    if (analysis.productType === 'rice') {
-      return 'kg';
-    }
-
-    switch (productType) {
-      case 'rice': return 'kg';
-      case 'oil': return 'liters';
-      case 'beverages': return 'bottles';
-      case 'dryfruits': return 'kg';
-      case 'spices': return 'kg';
-      case 'tea': return 'kg';
-      case 'pulses': return 'kg';
-      default: return 'units';
-    }
-  };
-
-  const getProductOrigin = () => {
-    const analysis = analyzeProductData();
-    return analysis.origin;
   };
 
   const handleAutoFillFromProfile = () => {
@@ -832,12 +825,23 @@ const SingleProductBuyModal = ({ isOpen, onClose, product, profile, onOrderSubmi
     setHasAutoFilled(true);
   };
 
-  // Determine if road transport should be shown based on country
   const shouldShowRoadTransport = () => {
-    if (!country) return true; // Default to showing all if no country selected
+    if (!country) return true;
     return country.toLowerCase() === 'india';
   };
 
+  const getSelectedQuantityDisplay = () => {
+    if (quantity === "custom") {
+      return `${customQuantity || 0} ${getQuantityUnit()}`;
+    } else {
+      const selectedOption = quantityOptions.find(q => q.value === quantity);
+      return selectedOption ? selectedOption.label : "Not selected";
+    }
+  };
+
+  // ============================================
+  // USE EFFECTS
+  // ============================================
   useEffect(() => {
     if (isOpen && product) {
       const analysis = analyzeProductData();
@@ -888,71 +892,6 @@ const SingleProductBuyModal = ({ isOpen, onClose, product, profile, onOrderSubmi
   }, [grade, packing, quantity, cifRequired, currency, baseProductPrice, customQuantity, brandingRequired, transportType, orderQuantity]);
 
   useEffect(() => {
-    if (isOpen && product) {
-      const analysis = analyzeProductData();
-
-      setGrade("");
-      setCifRequired("No");
-      setBrandingRequired("No");
-      setCustomQuantity("");
-      setGradePrice("0.00");
-      setPackingPrice("0.00");
-      setQuantityPrice("0.00");
-      setShippingCost("0.00");
-      setInsuranceCost("0.00");
-      setTaxes("0.00");
-      setBrandingCost("0.00");
-      setTransportCost("0.00");
-      setTotalPrice("0.00");
-      
-      // Reset transport fields
-      setTransportType("");
-      setPickupLocation({ city: "", state: "", country: "" });
-      setDeliveryLocation({ city: "", state: "", country: "" });
-      setVehicleType("");
-      setAirportOfLoading({ country: "", airportName: "" });
-      setAirportOfDestination({ country: "", airportName: "" });
-      setPortOfLoading({ country: "", state: "", portName: "" });
-      setPortOfDestination({ country: "", state: "", portName: "" });
-      setTransportPrice("0-0");
-      
-      setSubmitError("");
-      setOrderQuantity(1);
-
-      setBaseProductPrice(analysis.priceValue.toString());
-      setProductCurrency(analysis.currency);
-      setProductOrigin(analysis.origin);
-      setHasGrades(analysis.hasGrades);
-      setProductPriceDisplay(analysis.priceDisplay);
-      setProductImage(analysis.productImage);
-      setProductType(analysis.productType);
-
-      const grades = getGradesFromProduct();
-      setAvailableGrades(grades);
-
-      const qtyOptions = getQuantityOptionsFromProduct();
-      setQuantityOptions(qtyOptions);
-
-      const packOptions = getPackingOptionsFromProduct();
-      setPackingOptions(packOptions);
-
-      setCurrency(analysis.currency);
-
-      if (packOptions.length > 0) {
-        setPacking(packOptions[0].value);
-      }
-
-      if (qtyOptions.length > 0) {
-        setQuantity(qtyOptions[0].value);
-      }
-
-      if (grades.length > 0) {
-        setGrade(grades[0].value);
-      }
-    }
-  }, [isOpen, product]);
-
-  useEffect(() => {
     const handleClickOutside = (event) => {
       if (modalRef.current && !modalRef.current.contains(event.target)) {
         handleClose();
@@ -970,6 +909,9 @@ const SingleProductBuyModal = ({ isOpen, onClose, product, profile, onOrderSubmi
     };
   }, [isOpen]);
 
+  // ============================================
+  // SUBMIT HANDLER
+  // ============================================
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitError("");
@@ -998,7 +940,6 @@ const SingleProductBuyModal = ({ isOpen, onClose, product, profile, onOrderSubmi
       return;
     }
 
-    // Validate transport fields based on transport type
     if (transportType === 'road') {
       if (!pickupLocation.city || !pickupLocation.state || !pickupLocation.country ||
           !deliveryLocation.city || !deliveryLocation.state || !deliveryLocation.country) {
@@ -1066,7 +1007,6 @@ const SingleProductBuyModal = ({ isOpen, onClose, product, profile, onOrderSubmi
       actualUnit = selectedQuantityOption ? selectedQuantityOption.actualUnit : getQuantityUnit();
     }
 
-    // Build transport details based on type
     let transportDetails = {};
     if (transportType === 'road') {
       transportDetails = {
@@ -1173,7 +1113,6 @@ const SingleProductBuyModal = ({ isOpen, onClose, product, profile, onOrderSubmi
       const quoteId = await submitQuote(quoteData);
       console.log('✅ Quote submitted successfully with ID:', quoteId);
 
-      // Build transport message based on type
       let transportMessage = "";
       if (transportType === 'road') {
         transportMessage = `- Transport: Road
@@ -1271,7 +1210,6 @@ Thank you!`;
     setTransportCost("0.00");
     setTotalPrice("0.00");
     
-    // Reset transport fields
     setTransportType("");
     setPickupLocation({ city: "", state: "", country: "" });
     setDeliveryLocation({ city: "", state: "", country: "" });
@@ -1311,15 +1249,6 @@ Thank you!`;
     resetForm();
     setShowThankYou(false);
     onClose();
-  };
-
-  const getSelectedQuantityDisplay = () => {
-    if (quantity === "custom") {
-      return `${customQuantity || 0} ${getQuantityUnit()}`;
-    } else {
-      const selectedOption = quantityOptions.find(q => q.value === quantity);
-      return selectedOption ? selectedOption.label : "Not selected";
-    }
   };
 
   if (!isOpen) return null;
@@ -1565,7 +1494,6 @@ Thank you!`;
                       {emailError && <div className="error-message">{emailError}</div>}
                     </div>
 
-                    {/* Country - Now text input */}
                     <div className="form-group">
                       <label className="form-label">Country *</label>
                       <input
@@ -1673,7 +1601,6 @@ Thank you!`;
                   <section className="form-section">
                     <h3 className="section-title">Transport Details</h3>
 
-                    {/* Transport Type Selection - Compulsory */}
                     <div className="form-group">
                       <label className="form-label">Select Transport Type *</label>
                       <select 
@@ -1694,7 +1621,6 @@ Thank you!`;
                       )}
                     </div>
 
-                    {/* Conditional Transport Fields */}
                     {transportType === 'road' && (
                       <>
                         <div className="form-group">
@@ -2007,7 +1933,6 @@ Thank you!`;
                   </div>
 
                   <div className="price-breakdown-grid">
-                    {/* Show Transport Summary */}
                     {transportType && (
                       <div className="price-item transport-summary">
                         <span className="price-label">Transport Type:</span>

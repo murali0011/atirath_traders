@@ -48,10 +48,10 @@ const Hero = () => {
 
   // Memoize company data
   const companyData = useMemo(() => [
-    { 
+    {
       id: 1,
       name: "Siea - Sai Import and Export Agro", 
-      logo: "/img/Trusted/Siea.png",
+      logo: "/img/Trusted/Siea.webp",
       description: "Specializes in rice products including both Basmati and Non-Basmati varieties. One of the leading rice import and export companies with global operations.",
       products: "Basmati Rice, Non-Basmati Rice, Rice Products",
       location: "Delhi, India",
@@ -67,7 +67,7 @@ const Hero = () => {
     { 
       id: 2,
       name: "Atirath Industries", 
-      logo: "/img/Trusted/Atirath_Industries.png",
+      logo: "/img/Trusted/Atirath_Industries.webp",
       description: "Comprehensive import and export trading company dealing in agricultural commodities across India and international markets.",
       products: "Rice, Pulses, Vegetables, Grains, Spices, Edible Oils",
       location: "Hyderabad, Telangana, India",
@@ -84,7 +84,7 @@ const Hero = () => {
     { 
       id: 3,
       name: "Frout Root (Dubai Company)", 
-      logo: "/img/Trusted/Dubai.png",
+      logo: "/img/Trusted/Dubai.webp",
       description: "Dubai-based agricultural products company specializing in rice distribution across Middle Eastern markets.",
       products: "Rice Products, Grains, Food Commodities",
       location: "Dubai, UAE",
@@ -99,7 +99,7 @@ const Hero = () => {
     { 
       id: 4,
       name: "ET Logo - Exclusive Trader", 
-      logo: "/img/Trusted/ET_Logo.png",
+      logo: "/img/Trusted/ET_Logo.webp",
       description: "UK-based exclusive trading company dealing in premium agricultural and food products across European markets.",
       products: "All Agricultural Products, Exclusive Commodities, Specialty Foods",
       location: "London, United Kingdom",
@@ -114,7 +114,7 @@ const Hero = () => {
     { 
       id: 5,
       name: "Al-Jazeel Company", 
-      logo: "/img/Trusted/Oman.png",
+      logo: "/img/Trusted/Oman.webp",
       description: "Oman's leading import and export company specializing in meat, fruits, vegetables, and rice products.",
       products: "Meat Products, Fresh Fruits, Vegetables, Rice, Dairy",
       location: "Muscat, Oman",
@@ -129,7 +129,7 @@ const Hero = () => {
     { 
       id: 6,
       name: "Royalone Appliances", 
-      logo: "/img/Trusted/Royalone.jpg",
+      logo: "/img/Trusted/Royalone.webp",
       description: "Australian manufacturer and distributor of premium HVAC products including air conditioners and heaters.",
       products: "Air Conditioners, Heaters, HVAC Systems, Cooling Solutions",
       location: "Sydney, Australia",
@@ -144,7 +144,7 @@ const Hero = () => {
     { 
       id: 7,
       name: "Suguna Foods", 
-      logo: "/img/Trusted/Sugana.png",
+      logo: "/img/Trusted/Sugana.webp",
       description: "Hyderabad-based dairy products company specializing in milk-based sweets, cool drinks, and dairy products.",
       products: "Milk Products, Sweets, Milk-based Cool Drinks, Dairy Items",
       location: "Hyderabad, Telangana, India",
@@ -159,7 +159,7 @@ const Hero = () => {
     { 
       id: 8,
       name: "Tayo General Trading", 
-      logo: "/img/Trusted/Tyago.png",
+      logo: "/img/Trusted/Tyago.webp",
       description: "USA-based agricultural products import and export company with global reach in agro commodities.",
       products: "All Agricultural Products, Food Commodities, Agro Products",
       location: "New York, USA",
@@ -174,7 +174,7 @@ const Hero = () => {
     { 
       id: 9,
       name: "Metas Corporation", 
-      logo: "/img/Trusted/Metas.jpg",
+      logo: "/img/Trusted/Metas.webp",
       description: "Diversified corporation with interests in multiple sectors including agriculture, technology, and trading.",
       products: "Multiple Sectors - Agriculture, Technology, Trading",
       location: "Global Operations",
@@ -189,7 +189,7 @@ const Hero = () => {
     { 
       id: 10,
       name: "Heritage", 
-      logo: "/img/Trusted/Heritage.png",
+      logo: "/img/Trusted/Heritage.webp",
       description: "Thailand-based global import and export company specializing in agricultural commodities, with a strong focus on rice, spices, and tropical fruits. Operating worldwide with a legacy of quality and reliability.",
       products: "Rice, Spices, Tropical Fruits, Agricultural Commodities, Food Products",
       location: "Bangkok, Thailand (Global Operations)",
@@ -206,7 +206,7 @@ const Hero = () => {
     { 
       id: 11,
       name: "Akil Drinks", 
-      logo: "/img/Trusted/Akil.jpeg",
+      logo: "/img/Trusted/Akil.webp",
       description: "Global import and export company specializing in beverages and drinks with operations worldwide. Based in Thailand with branches across multiple countries, focusing on quality beverage products distribution.",
       products: "Beverages, Soft Drinks, Juices, Energy Drinks, Alcoholic Beverages, Water Products",
       location: "Bangkok, Thailand (Global Operations)",

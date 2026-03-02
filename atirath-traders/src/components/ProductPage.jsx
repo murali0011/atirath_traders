@@ -1,6 +1,6 @@
 // components/ProductPage.jsx
-import React, { useState, useEffect, useContext } from 'react';
-import { ArrowLeft, Building2, X, ChevronRight, Grid, List, Search, ShoppingCart, Check, ShoppingBag, Package, MapPin, Clock, Tag, Layers, Star, Shield, Truck, Award } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, Building2, X, ChevronRight, ShoppingCart, Check, ShoppingBag, Package, MapPin, Clock, Tag, Layers, Award } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { database, ref, get } from '../firebase';
 import { CURRENCIES } from '../data/currency';
@@ -8,6 +8,11 @@ import SingleProductBuyModal from './SingleProductBuyModal';
 import CheckoutModal from './CheckoutModal';
 import AddToCartConfigModal from './AddToCartConfigModal';
 import { useCart } from './CartContext';
+import { 
+  ricePackingOptions,
+  getQuantityOptionsForProduct,
+  getQuantityUnit 
+} from '../data/ProductData';
 
 const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isAuthenticated = false, onNewOrderSubmitted }) => {
   const { type: categoryId } = useParams();
@@ -37,9 +42,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
   const [detailedProduct, setDetailedProduct] = useState(null);
   const [viewMode, setViewMode] = useState('companies');
   const [isLoading, setIsLoading] = useState(true);
-  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
-  const [viewStyle, setViewStyle] = useState('grid');
-  const [brandSearchQuery, setBrandSearchQuery] = useState('');
   const [productSearchQuery, setProductSearchQuery] = useState('');
   const [cartStatus, setCartStatus] = useState({});
   const [showCartSuccess, setShowCartSuccess] = useState(false);
@@ -152,21 +154,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
 
     setFilteredProducts(filtered);
   }, [globalSearchQuery, products, productSearchQuery]);
-
-  // Filter brands based on search query
-  useEffect(() => {
-    if (brandSearchQuery.trim() !== '' && brands.length > 0) {
-      const searchLower = brandSearchQuery.toLowerCase().trim();
-      const filteredBrands = brands.filter(brand =>
-        brand.name.toLowerCase().includes(searchLower)
-      );
-      setBrands(filteredBrands);
-    } else {
-      if (selectedCompany && allBrands && allProducts) {
-        loadCompanyBrands();
-      }
-    }
-  }, [brandSearchQuery]);
 
   const convertCurrency = (amount, fromCurrency, toCurrency) => {
     if (!CURRENCIES[fromCurrency] || !CURRENCIES[toCurrency]) return amount;
@@ -310,9 +297,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
     const fallbackImages = {
       rice: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=500&auto=format&fit=crop&q=60',
       dry_fruits: 'https://images.unsplash.com/photo-1541636410410-0c5c8a9e6a8f?w=500&auto=format&fit=crop&q=60',
-      dried_fruits: 'https://images.unsplash.com/photo-1541636410410-0c5c8a9e6a8f?w=500&auto=format&fit=crop&q=60',
       lentils: 'https://food.fnr.sndimg.com/content/dam/images/food/fullset/2016/2/15/0/HE_dried-legumes-istock-2_s4x3.jpg.rend.hgtvcom.1280.1280.85.suffix/1455572939649.webp',
-      popcorn: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500&auto=format&fit=crop&q=60',
       tea: 'https://images.unsplash.com/photo-1571934811396-0ff49ca3a8a7?w=500&auto=format&fit=crop&q=60',
       beverages: 'https://images.unsplash.com/photo-1561758033-d89a9ad46330?w=500&auto=format&fit=crop&q=60',
       default: 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=500&auto=format&fit=crop&q=60'
@@ -328,7 +313,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
       return currency === 'AUTO' ? baseCurrency : currency;
     };
 
-    // SIEA RICE (INR range per 100kg) - CONVERT TO PER KG
     if (product.price?.min !== undefined && product.price?.max !== undefined) {
       const base = 'INR';
       const target = resolveCurrency(base);
@@ -344,7 +328,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
       return `${symbol}${minConverted.toFixed(2)} - ${symbol}${maxConverted.toFixed(2)} / kg`;
     }
 
-    // AKIL DRINKS (Ex-Mill USD)
     if (product["Ex-Mill_usd"] !== undefined) {
       const base = 'USD';
       const target = resolveCurrency(base);
@@ -353,7 +336,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
       return `${symbol}${value.toFixed(2)} EX-MILL`;
     }
 
-    // HERITAGE (price_usd_per_carton)
     if (product.price_usd_per_carton !== undefined) {
       const base = 'USD';
       const target = resolveCurrency(base);
@@ -362,7 +344,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
       return `${symbol}${value.toFixed(2)} / carton`;
     }
 
-    // NUT WALKER (fob_price_usd)
     if (product.fob_price_usd !== undefined) {
       const base = 'USD';
       const target = resolveCurrency(base);
@@ -371,7 +352,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
       return `${symbol}${value.toFixed(2)} FOB`;
     }
 
-    // Regular price field
     if (product.price !== undefined && typeof product.price === 'number') {
       const base = 'USD';
       const target = resolveCurrency(base);
@@ -387,7 +367,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
   // GET PRODUCT PRICE FOR CART
   // ============================================
   const getProductPriceForCart = (product) => {
-    // SIEA RICE (INR range per 100kg) - CONVERT TO PER KG
     if (product.price?.min !== undefined && product.price?.max !== undefined) {
       return {
         type: 'rice',
@@ -401,7 +380,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
       };
     }
 
-    // AKIL DRINKS (Ex-Mill USD)
     if (product["Ex-Mill_usd"] !== undefined) {
       return {
         type: 'carton',
@@ -412,7 +390,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
       };
     }
 
-    // HERITAGE (price_usd_per_carton)
     if (product.price_usd_per_carton !== undefined) {
       return {
         type: 'carton',
@@ -423,7 +400,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
       };
     }
 
-    // NUT WALKER (fob_price_usd)
     if (product.fob_price_usd !== undefined) {
       return {
         type: 'carton',
@@ -434,7 +410,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
       };
     }
 
-    // Regular price field
     if (product.price !== undefined && typeof product.price === 'number') {
       return {
         type: 'fixed',
@@ -455,123 +430,39 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
   // CHECK IF PRODUCT IS RICE
   // ============================================
   const isRiceProduct = (product) => {
-    // Check by company name
     if (product.companyName?.toLowerCase().includes('siea')) {
       return true;
     }
-    
-    // Check by price structure
     if (product.price?.min !== undefined && product.price?.max !== undefined) {
       return true;
     }
-    
-    // Check by category
     if (categoryId === 'rice' || categoryData?.name?.toLowerCase().includes('rice')) {
       return true;
     }
-    
-    // Check by product name
     if (product.name?.toLowerCase().includes('rice') || 
         product.name?.toLowerCase().includes('basmati') ||
         product.name?.toLowerCase().includes('sona masoori')) {
       return true;
     }
-    
     return false;
   };
 
   // ============================================
-  // GET AVAILABLE GRADES FOR RICE
-  // ============================================
-  const getRiceGrades = (product) => {
-    if (product.grades && Array.isArray(product.grades) && product.grades.length > 0) {
-      return product.grades.map(grade => ({
-        value: grade.grade || grade.name || "Standard",
-        price: grade.price_inr || grade.price || "95.00",
-        label: `${grade.grade || grade.name || "Standard"} - ₹${grade.price_inr || grade.price || "95"}/kg`
-      }));
-    }
-    
-    // Default grades if none in product data
-    return [
-      { value: "Premium", price: "120.00", label: "Premium - ₹120/kg" },
-      { value: "Standard", price: "95.00", label: "Standard - ₹95/kg" },
-      { value: "Economy", price: "75.00", label: "Economy - ₹75/kg" }
-    ];
-  };
-
-  // ============================================
-  // GET GRADES FOR DISPLAY
-  // ============================================
-  const getGradesDisplay = (product) => {
-    if (product.grades && Array.isArray(product.grades) && product.grades.length > 0) {
-      return product.grades.map(grade => {
-        const gradeName = grade.grade || grade.name || "Standard";
-        const gradePrice = grade.price_inr || grade.price || "";
-        return (
-          <div key={gradeName} style={{ color: '#1e293b', marginBottom: '2px' }}>
-            {gradeName}{gradePrice ? ` - ₹${gradePrice}` : ''}
-          </div>
-        );
-      });
-    }
-    return <div style={{ color: '#1e293b' }}>Standard Grade</div>;
-  };
-
-  // ============================================
-  // GET PACKAGING DISPLAY
-  // ============================================
-  const getPackagingDisplay = (product) => {
-    if (product.packaging) {
-      if (typeof product.packaging === 'object') {
-        if (product.packaging.units_per_carton && product.packaging.unit_weight_ml) {
-          return `${product.packaging.units_per_carton} × ${product.packaging.unit_weight_ml} ml`;
-        }
-        if (product.packaging.units_per_carton && product.packaging.unit_weight_g) {
-          return `${product.packaging.units_per_carton} × ${product.packaging.unit_weight_g} g`;
-        }
-        if (product.packaging.units_per_carton) {
-          return `${product.packaging.units_per_carton} units/carton`;
-        }
-        if (product.packaging.type) {
-          return product.packaging.type;
-        }
-      } else if (typeof product.packaging === 'string') {
-        return product.packaging;
-      }
-    }
-    
-    if (product.pack_type) {
-      return product.pack_type;
-    }
-    
-    return "Standard Packaging";
-  };
-
-  // ============================================
-  // 🔥 UPDATED: GET PACKING OPTIONS FOR PRODUCT
+  // GET PACKING OPTIONS FOR PRODUCT - ONLY from Firebase + Rice fallback
   // ============================================
   const getPackingOptions = (product) => {
-    // Check if it's a rice product
+    if (!product) return [];
+    
     const isRice = isRiceProduct(product);
     
     if (isRice) {
-      // ✅ SPECIFIC PACKING OPTIONS FOR RICE AS REQUESTED
-      return [
-        { value: "PP Bags", label: "PP Bags" },
-        { value: "Non-Woven Bags", label: "Non-Woven Bags" },
-        { value: "Jute Bags", label: "Jute Bags" },
-        { value: "BOPP Bags", label: "BOPP Bags" },
-        { value: "LDPE Bags", label: "LDPE Bags" },
-        { value: "HDPE Bags", label: "HDPE Bags" },
-        { value: "Vacuum Packed", label: "Vacuum Packed" },
-        { value: "Paper Bags", label: "Paper Bags" },
-        { value: "Bulk Packaging", label: "Bulk Packaging" },
-        { value: "Custom Packaging", label: "Custom Packaging" }
-      ];
+      return ricePackingOptions.map(option => ({
+        value: option.value,
+        label: option.value,
+        price: option.price
+      }));
     }
     
-    // For non-rice products, use product-specific or default options
     if (product.pack_type) {
       return [
         { value: product.pack_type, label: product.pack_type }
@@ -602,91 +493,92 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
       }
     }
     
-    // Default options for non-rice products
-    return [
-      { value: "Standard Pack", label: "Standard Pack" },
-      { value: "Bulk Pack", label: "Bulk Pack" },
-      { value: "Retail Pack", label: "Retail Pack" }
-    ];
+    return [];
   };
 
   // ============================================
-  // GET QUANTITY OPTIONS FOR PRODUCT
+  // GET QUANTITY OPTIONS FOR PRODUCT - ONLY from ProductData.js
   // ============================================
   const getQuantityOptions = (product) => {
-    const isRice = isRiceProduct(product);
-    
-    if (isRice) {
-      return [
-        { value: "1", label: "1 kg", quantity: 1, unit: "kg" },
-        { value: "5", label: "5 kg", quantity: 5, unit: "kg" },
-        { value: "10", label: "10 kg", quantity: 10, unit: "kg" },
-        { value: "25", label: "25 kg", quantity: 25, unit: "kg" },
-        { value: "50", label: "50 kg", quantity: 50, unit: "kg" },
-        { value: "100", label: "100 kg (1 Quintal)", quantity: 100, unit: "kg" },
-        { value: "500", label: "500 kg (5 Quintals)", quantity: 500, unit: "kg" },
-        { value: "1000", label: "1000 kg (1 Ton)", quantity: 1000, unit: "kg" }
-      ];
-    }
-    
-    // Check if carton-based product
-    if (product.price_usd_per_carton || product.fob_price_usd || product["Ex-Mill_usd"]) {
-      const unitsPerCarton = product.packaging?.units_per_carton || 48;
-      return [
-        { value: "1", label: `1 Carton (${unitsPerCarton} units)`, quantity: 1, unit: "carton" },
-        { value: "5", label: `5 Cartons (${unitsPerCarton * 5} units)`, quantity: 5, unit: "carton" },
-        { value: "10", label: `10 Cartons (${unitsPerCarton * 10} units)`, quantity: 10, unit: "carton" },
-        { value: "20", label: `20 Cartons (${unitsPerCarton * 20} units)`, quantity: 20, unit: "carton" },
-        { value: "50", label: `50 Cartons (${unitsPerCarton * 50} units)`, quantity: 50, unit: "carton" }
-      ];
-    }
-    
-    // Default for other products
-    return [
-      { value: "1", label: "1 Unit", quantity: 1, unit: "unit" },
-      { value: "5", label: "5 Units", quantity: 5, unit: "unit" },
-      { value: "10", label: "10 Units", quantity: 10, unit: "unit" },
-      { value: "25", label: "25 Units", quantity: 25, unit: "unit" },
-      { value: "50", label: "50 Units", quantity: 50, unit: "unit" },
-      { value: "100", label: "100 Units", quantity: 100, unit: "unit" }
-    ];
+    return getQuantityOptionsForProduct(product);
   };
 
   // ============================================
-  // GET PER UNIT PRICE FOR CARTON PRODUCTS
+  // GET QUANTITY UNIT - ONLY from ProductData.js
   // ============================================
+  const getQuantityUnitFromProductData = (product) => {
+    return getQuantityUnit(product);
+  };
+
+  // ============================================
+  // GET RICE GRADES - ONLY from Firebase
+  // ============================================
+  const getRiceGrades = (product) => {
+    if (!product) return [];
+    
+    if (product.grades && Array.isArray(product.grades) && product.grades.length > 0) {
+      return product.grades.map(grade => ({
+        value: grade.grade || grade.name || "Standard",
+        price: grade.price_inr || grade.price || "95.00",
+        label: `${grade.grade || grade.name || "Standard"} - ₹${grade.price_inr || grade.price || "95"}/kg`
+      }));
+    }
+    
+    return [];
+  };
+
+  // Get packaging display
+  const getPackagingDisplay = (product) => {
+    if (product.packaging) {
+      if (typeof product.packaging === 'object') {
+        if (product.packaging.units_per_carton && product.packaging.unit_weight_ml) {
+          return `${product.packaging.units_per_carton} × ${product.packaging.unit_weight_ml} ml`;
+        }
+        if (product.packaging.units_per_carton && product.packaging.unit_weight_g) {
+          return `${product.packaging.units_per_carton} × ${product.packaging.unit_weight_g} g`;
+        }
+        if (product.packaging.units_per_carton) {
+          return `${product.packaging.units_per_carton} units/carton`;
+        }
+        if (product.packaging.type) {
+          return product.packaging.type;
+        }
+      } else if (typeof product.packaging === 'string') {
+        return product.packaging;
+      }
+    }
+    
+    if (product.pack_type) {
+      return product.pack_type;
+    }
+    
+    return "Standard Packaging";
+  };
+
+  // Get per unit price for carton products
   const getPerUnitPrice = (product) => {
     if (product.price_usd_per_carton && product.packaging?.units_per_carton) {
       const perUnitUSD = product.price_usd_per_carton / product.packaging.units_per_carton;
-      const perGramUSD = product.packaging.unit_weight_g
-        ? (perUnitUSD / product.packaging.unit_weight_g)
-        : null;
       return {
-        perUnit: `$${perUnitUSD.toFixed(2)} per unit`,
-        perGram: perGramUSD ? `$${perGramUSD.toFixed(4)}/g` : null
+        perUnit: `$${perUnitUSD.toFixed(2)} per unit`
       };
     }
 
     if (product.fob_price_usd && product.packaging?.units_per_carton) {
       const perUnitUSD = product.fob_price_usd / product.packaging.units_per_carton;
-      const perGramUSD = product.packaging.unit_weight_g
-        ? (perUnitUSD / product.packaging.unit_weight_g)
-        : null;
       return {
-        perUnit: `$${perUnitUSD.toFixed(2)} per unit`,
-        perGram: perGramUSD ? `$${perGramUSD.toFixed(4)}/g` : null
+        perUnit: `$${perUnitUSD.toFixed(2)} per unit`
       };
     }
     return null;
   };
 
-  // Get comprehensive product specifications
+  // Get product specifications
   const getProductSpecs = (product) => {
     const specs = [];
     const isRice = isRiceProduct(product);
     
     if (isRice) {
-      // Rice-specific specifications
       if (product.origin) {
         specs.push({
           label: 'Origin',
@@ -712,7 +604,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
         });
       }
     } else {
-      // Non-rice specifications
       if (product.packaging) {
         if (typeof product.packaging === 'object') {
           if (product.packaging.units_per_carton && product.packaging.unit_weight_ml) {
@@ -797,7 +688,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
   const handleCompanySelect = (company) => {
     setSelectedCompany(company);
     setSelectedBrand(null);
-    setBrandSearchQuery('');
   };
 
   // Handle brand selection
@@ -822,7 +712,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
     setProducts([]);
     setFilteredProducts([]);
     setViewMode('companies');
-    setBrandSearchQuery('');
     setProductSearchQuery('');
   };
 
@@ -843,22 +732,16 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
     setIsSingleProductModalOpen(true);
   };
 
-  // ============================================
-  // HANDLE ADD TO CART WITH CONFIGURATION
-  // ============================================
+  // Handle add to cart with configuration
   const handleAddToCartClick = (product) => {
     console.log("📦 Opening add to cart config for product:", product);
     
-    // Check if product is rice or not
     const isRice = isRiceProduct(product);
     
-    // Get brand information
     const brandId = product.brandId || null;
     const brandName = product.brandName || 'General';
     
-    // Prepare product for configuration modal with ALL data
     const productForConfig = {
-      // Basic info
       id: product.id,
       name: product.name,
       companyName: product.companyName,
@@ -867,17 +750,11 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
       brandId: brandId,
       category: categoryData?.name || categoryId,
       categoryId: categoryId,
-      
-      // Image
       image: product.localImage || product.image || getFallbackImage(),
-      
-      // Price fields
       price: product.price,
       price_usd_per_carton: product.price_usd_per_carton,
       fob_price_usd: product.fob_price_usd,
       "Ex-Mill_usd": product["Ex-Mill_usd"],
-      
-      // Product details
       packaging: product.packaging,
       pack_type: product.pack_type,
       grades: product.grades,
@@ -885,8 +762,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
       shelf_life: product.shelf_life,
       hsn_code: product.hsn_code,
       product_description: product.product_description,
-      
-      // Flags
       isRice: isRice
     };
     
@@ -895,72 +770,49 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
     setIsAddToCartConfigModalOpen(true);
   };
 
-  // ============================================
-  // HANDLE ADD TO CART AFTER CONFIGURATION
-  // ============================================
+  // Handle add to cart after configuration
   const handleAddToCartWithConfig = (productWithConfig) => {
     console.log("📦 ProductPage: Adding product to cart with configuration:", productWithConfig);
     
-    // Get price info
     const priceInfo = getProductPriceForCart(productWithConfig);
     
-    // Ensure all fields are present
     const enhancedProduct = {
-      // Basic info
       id: productWithConfig.id,
       productId: productWithConfig.id,
       name: productWithConfig.name,
-      
-      // Brand info
       brandId: productWithConfig.brandId || null,
       brandName: productWithConfig.brandName || 'General',
       companyId: productWithConfig.companyId || null,
       companyName: productWithConfig.companyName || '',
-      
-      // Price info
       price: priceInfo,
       price_usd_per_carton: productWithConfig.price_usd_per_carton,
       fob_price_usd: productWithConfig.fob_price_usd,
       "Ex-Mill_usd": productWithConfig["Ex-Mill_usd"],
-      
-      // Image
       image: productWithConfig.image || getFallbackImage(),
-      
-      // Category
       category: productWithConfig.category || categoryData?.name || categoryId,
       categoryId: categoryId,
-      
-      // Quantity
       quantity: 1,
-      
-      // SELECTED CONFIGURATION - WITH DISPLAY NAMES
       selectedGrade: productWithConfig.selectedGrade,
       selectedGradePrice: productWithConfig.selectedGradePrice,
       selectedGradeDisplay: productWithConfig.selectedGradeDisplay || productWithConfig.selectedGrade,
       selectedPacking: productWithConfig.selectedPacking,
       selectedQuantity: productWithConfig.selectedQuantity,
-      quantityUnit: productWithConfig.quantityUnit || 'kg',
+      quantityUnit: productWithConfig.quantityUnit || getQuantityUnitFromProductData(productWithConfig) || 'kg',
       isRice: productWithConfig.isRice || false,
-      
-      // Store complete selectedConfig object
       selectedConfig: {
         grade: productWithConfig.selectedGrade,
         gradePrice: productWithConfig.selectedGradePrice,
         gradeDisplay: productWithConfig.selectedGradeDisplay || productWithConfig.selectedGrade,
         packing: productWithConfig.selectedPacking,
         quantity: productWithConfig.selectedQuantity,
-        quantityUnit: productWithConfig.quantityUnit || 'kg',
+        quantityUnit: productWithConfig.quantityUnit || getQuantityUnitFromProductData(productWithConfig) || 'kg',
         isRice: productWithConfig.isRice || false
       },
-      
-      // Additional product info
       origin: productWithConfig.origin || '',
       packaging: productWithConfig.packaging || null,
       pack_type: productWithConfig.pack_type || '',
       grades: productWithConfig.grades || [],
       shelf_life: productWithConfig.shelf_life || '',
-      
-      // Store all Firebase data
       firebaseProductData: {
         ...productWithConfig,
         selectedConfig: {
@@ -969,7 +821,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
           gradeDisplay: productWithConfig.selectedGradeDisplay || productWithConfig.selectedGrade,
           packing: productWithConfig.selectedPacking,
           quantity: productWithConfig.selectedQuantity,
-          quantityUnit: productWithConfig.quantityUnit || 'kg',
+          quantityUnit: productWithConfig.quantityUnit || getQuantityUnitFromProductData(productWithConfig) || 'kg',
           isRice: productWithConfig.isRice || false
         }
       }
@@ -977,10 +829,8 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
     
     console.log("✅ Enhanced product ready for cart:", enhancedProduct);
     
-    // Add to cart
     addToCart(enhancedProduct);
     
-    // Store the entire product object for success message
     setAddedProduct(enhancedProduct);
     setShowCartSuccess(true);
     
@@ -990,14 +840,13 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
     }, 3000);
   };
 
-  // Handle cart checkout - multiple products
+  // Handle cart checkout
   const handleCartCheckout = () => {
     if (cartItems.length === 0) {
       alert('Your cart is empty! Add some products first.');
       return;
     }
     
-    // Prepare cart products for checkout
     const cartProductsForCheckout = cartItems.map(item => ({
       ...item,
       name: item.name || `Product ${item.id}`,
@@ -1008,15 +857,13 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
       brandName: item.brandName || 'General',
       unit: item.unit || 'unit',
       category: item.category || categoryData?.name || categoryId,
-      
-      // Include selected configuration
       selectedConfig: item.selectedConfig || null,
       selectedGrade: item.selectedGrade || null,
       selectedGradePrice: item.selectedGradePrice || null,
       selectedGradeDisplay: item.selectedGradeDisplay || null,
       selectedPacking: item.selectedPacking || null,
       selectedQuantity: item.selectedQuantity || 1,
-      quantityUnit: item.quantityUnit || 'unit',
+      quantityUnit: item.quantityUnit || getQuantityUnitFromProductData(item) || 'unit',
       isRice: item.isRice || false,
       cartItemId: item.cartItemId
     }));
@@ -1050,7 +897,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
     return cartItems.reduce((sum, item) => sum + item.quantity, 0);
   };
 
-  // Handle successful order submission from modals
+  // Handle successful order submission
   const handleOrderSubmitted = () => {
     if (onNewOrderSubmitted) {
       onNewOrderSubmitted();
@@ -1099,7 +946,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
     );
   }
 
-  // Render companies grid with logos - WITH WHITE TEXT
+  // Render companies grid
   const renderCompanies = () => (
     <div className="companies-grid mt-4">
       <div className="d-flex justify-content-between align-items-center mb-4">
@@ -1125,7 +972,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
       ) : (
         <div className="row g-4">
           {companies.map((company, index) => (
-            <div key={company.id} className="col-6 col-md-4 col-lg-3" data-aos="fade-up" data-aos-delay={index % 4 * 100}>
+            <div key={company.id} className="col-6 col-md-4 col-lg-3">
               <div
                 className="service-card glass p-3 text-center h-100"
                 onClick={() => handleCompanySelect(company)}
@@ -1140,10 +987,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
                       style={{ width: '80px', height: '80px', objectFit: 'cover' }}
                       onError={(e) => {
                         e.target.style.display = 'none';
-                        const fallback = e.target.nextElementSibling || document.createElement('div');
-                        fallback.className = 'fallback-logo';
-                        fallback.innerHTML = '<Building2 className="w-12 h-12 text-muted" />';
-                        e.target.parentNode.appendChild(fallback);
                       }}
                     />
                   ) : (
@@ -1169,7 +1012,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
     </div>
   );
 
-  // Render brands grid with logos - WITH WHITE TEXT
+  // Render brands grid
   const renderBrands = () => (
     <div className="brands-grid mt-4">
       <div className="d-flex justify-content-between align-items-center mb-4">
@@ -1215,20 +1058,8 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
                           }}
                           onError={(e) => {
                             e.target.style.display = 'none';
-                            const fallback = e.target.parentNode.querySelector('.brand-logo-placeholder') ||
-                              document.createElement('div');
-                            fallback.className = 'brand-logo-placeholder';
-                            fallback.innerHTML = '<Building2 className="w-12 h-12" style="color: #ffffff" />';
-                            if (!e.target.parentNode.querySelector('.brand-logo-placeholder')) {
-                              e.target.parentNode.appendChild(fallback);
-                            }
                           }}
                         />
-                        {!brandLogo && (
-                          <div className="brand-logo-placeholder">
-                            <Building2 className="w-12 h-12" style={{ color: '#ffffff' }} />
-                          </div>
-                        )}
                       </div>
                     ) : (
                       <div className="brand-icon-placeholder">
@@ -1252,7 +1083,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
     </div>
   );
 
-  // Render products grid - WITH WHITE TEXT AND EXACT FORMATS FROM IMAGES
+  // Render products grid
   const renderProducts = () => {
     const hasSearchQuery = globalSearchQuery.trim() !== '' || productSearchQuery.trim() !== '';
     const searchResultsCount = filteredProducts.length;
@@ -1260,7 +1091,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
 
     return (
       <div className="products-full-screen mt-4">
-        {/* Products Header - FIXED: Side by side layout with proper wrapping */}
         <div className="products-header" style={{
           display: 'flex',
           flexDirection: isMobile ? 'column' : 'row',
@@ -1269,7 +1099,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
           marginBottom: '24px',
           gap: '16px'
         }}>
-          {/* Left side - Title */}
           <div style={{ flex: '1 1 auto' }}>
             {selectedBrand ? (
               <h3 className="h4 mb-1" style={{ color: '#ffffff' }}>{selectedBrand.name} Products</h3>
@@ -1290,7 +1119,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
             )}
           </div>
           
-          {/* Right side - Actions: Checkout button and Currency dropdown SIDE BY SIDE */}
           <div className="products-actions" style={{
             display: 'flex',
             flexDirection: 'row',
@@ -1299,7 +1127,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
             flexWrap: 'wrap',
             justifyContent: isMobile ? 'flex-start' : 'flex-end'
           }}>
-            {/* Cart Checkout Button */}
             {cartTotalItemsCount > 0 && (
               <button
                 className="btn btn-success d-flex align-items-center gap-2"
@@ -1322,7 +1149,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
               </button>
             )}
             
-            {/* Currency Dropdown */}
             <div className="currency-dropdown-container" style={{
               flex: isMobile ? '1 1 auto' : '0 0 auto'
             }}>
@@ -1352,7 +1178,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
           </div>
         </div>
         
-        {/* Success Message - Shows correct cart quantity */}
         {showCartSuccess && addedProduct && (
           <div className="cart-success-message" style={{
             position: 'fixed',
@@ -1379,7 +1204,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
           </div>
         )}
         
-        {/* Products Grid */}
         {filteredProducts.length === 0 ? (
           <div className="no-products-message text-center py-5">
             {hasSearchQuery ? (
@@ -1430,7 +1254,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
               return (
                 <div key={product.id} className="col-12 col-sm-6 col-md-4 col-lg-3">
                   <div className="product-card glass p-3 h-100 d-flex flex-column">
-                    {/* Product Image */}
                     <div className="product-image-container mb-3 flex-shrink-0 position-relative">
                       <img
                         src={productImage}
@@ -1467,25 +1290,21 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
                       )}
                     </div>
                     
-                    {/* Product Info */}
                     <div className="product-info flex-grow-1 d-flex flex-column">
                       <h4 className="h6 fw-semibold mb-2 line-clamp-2" style={{ color: '#ffffff' }}>
                         {product.name}
                       </h4>
                       
-                      {/* Brand Name */}
                       {product.brandName && product.brandName !== 'General' && (
                         <p className="text-xs mb-1" style={{ color: '#10b981' }}>
                           Brand: <strong style={{ color: '#10b981' }}>{product.brandName}</strong>
                         </p>
                       )}
                       
-                      {/* Price Display */}
                       <p className="product-price fw-bold mb-2" style={{ color: '#4096e2' }}>
                         {getProductPrice(product)}
                       </p>
                       
-                      {/* Product Details - Rice Specific */}
                       {isRice && (
                         <div className="product-details mb-2 small">
                           {product.origin && (
@@ -1505,7 +1324,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
                                   <div key={idx} style={{ color: '#ffffff', marginBottom: '2px' }}>
                                     {grade.grade || grade.name || "Standard"} 
                                     {grade.price_inr && ` - ₹${grade.price_inr}`}
-                                    {grade.price && !grade.price_inr && ` - ₹${grade.price}`}
                                   </div>
                                 ))}
                               </div>
@@ -1514,10 +1332,8 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
                         </div>
                       )}
                       
-                      {/* Product Details - Non-Rice Specific */}
                       {!isRice && (
                         <div className="product-details mb-2 small">
-                          {/* Packaging */}
                           {product.packaging && (
                             <div className="d-flex align-items-center mb-1" style={{ color: '#ffffff' }}>
                               <Package size={12} className="me-1" style={{ color: '#4096e2' }} />
@@ -1537,15 +1353,13 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
                             </div>
                           )}
                           
-                          {/* Origin */}
-                          {product.origin && (
+                          {product.origin && !product.packaging && (
                             <div className="d-flex align-items-center mb-1" style={{ color: '#ffffff' }}>
                               <MapPin size={12} className="me-1" style={{ color: '#4096e2' }} />
                               <span>Origin: <strong style={{ color: '#ffffff' }}>{product.origin}</strong></span>
                             </div>
                           )}
                           
-                          {/* Pack Type */}
                           {product.pack_type && !product.packaging && (
                             <div className="d-flex align-items-center mb-1" style={{ color: '#ffffff' }}>
                               <Package size={12} className="me-1" style={{ color: '#4096e2' }} />
@@ -1553,7 +1367,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
                             </div>
                           )}
                           
-                          {/* Shelf Life */}
                           {product.shelf_life && (
                             <div className="d-flex align-items-center mb-1" style={{ color: '#ffffff' }}>
                               <Clock size={12} className="me-1" style={{ color: '#4096e2' }} />
@@ -1563,7 +1376,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
                         </div>
                       )}
                       
-                      {/* Action Buttons - Full Width and Clear */}
                       <div className="product-actions d-flex flex-column gap-2 mt-auto">
                         <button
                           className="btn btn-outline-primary btn-sm w-100"
@@ -1641,7 +1453,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
       color: '#e6e6e6',
       position: 'relative'
     }}>
-      {/* Back Button */}
       <button
         className="back-button"
         style={{
@@ -1672,7 +1483,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
         <ArrowLeft className="w-6 h-6" />
       </button>
 
-      {/* Header */}
       <div className="product-header" style={{
         marginTop: isMobile ? '140px' : '120px',
         textAlign: 'center',
@@ -1686,14 +1496,12 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
         )}
       </div>
 
-      {/* Main Content */}
       <div className="container" style={{ maxWidth: '1400px', margin: '0 auto', padding: '20px' }}>
         {viewMode === 'companies' && renderCompanies()}
         {viewMode === 'brands' && renderBrands()}
         {viewMode === 'products' && renderProducts()}
       </div>
 
-      {/* Single Product Modal */}
       <SingleProductBuyModal
         isOpen={isSingleProductModalOpen}
         onClose={() => {
@@ -1708,7 +1516,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
         onOrderSubmitted={handleOrderSubmitted}
       />
 
-      {/* Add to Cart Configuration Modal */}
       <AddToCartConfigModal
         isOpen={isAddToCartConfigModalOpen}
         onClose={() => {
@@ -1723,7 +1530,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
         isRiceProduct={isRiceProduct}
       />
 
-      {/* Checkout Modal */}
       <CheckoutModal
         isOpen={isCheckoutModalOpen}
         onClose={() => {
@@ -1735,7 +1541,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
         onOrderSubmitted={handleOrderSubmitted}
       />
 
-      {/* Details Modal - Beautiful Design with Black Text and Green Accents */}
       {showDetailsModal && detailedProduct && (
         <div className="modal-overlay" onClick={() => setShowDetailsModal(false)} style={{
           position: 'fixed',
@@ -1762,7 +1567,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
             boxShadow: '0 30px 60px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(16, 185, 129, 0.1) inset',
             animation: 'modalFadeIn 0.3s ease'
           }}>
-            {/* Header with green gradient */}
             <div className="modal-header" style={{
               padding: '28px 32px',
               borderBottom: '1px solid rgba(16, 185, 129, 0.15)',
@@ -1810,7 +1614,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
             
             <div className="modal-body" style={{ padding: '32px' }}>
               <div className="row g-5">
-                {/* Left Column - Image */}
                 <div className="col-md-5">
                   <div style={{
                     background: '#ffffff',
@@ -1831,7 +1634,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
                       }}
                     />
                     
-                    {/* Quick Info Badges - Green Theme */}
                     <div style={{ 
                       display: 'flex', 
                       gap: '12px', 
@@ -1871,9 +1673,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
                   </div>
                 </div>
                 
-                {/* Right Column - Details */}
                 <div className="col-md-7">
-                  {/* Description - Black text on light green background */}
                   {detailedProduct.product_description && (
                     <div style={{
                       background: 'rgba(16, 185, 129, 0.04)',
@@ -1895,7 +1695,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
                     </div>
                   )}
                   
-                  {/* Price Card - Green accent */}
                   <div style={{
                     background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
                     padding: '24px 28px',
@@ -1917,7 +1716,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
                     </div>
                   </div>
                   
-                  {/* Specifications - Black text on white */}
                   <div>
                     <h6 style={{ 
                       color: '#10b981', 
@@ -1996,7 +1794,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
               </div>
             </div>
             
-            {/* Footer with Actions - Green theme buttons */}
             <div className="modal-footer" style={{
               padding: '24px 32px 32px',
               borderTop: '1px solid rgba(16, 185, 129, 0.15)',
@@ -2075,7 +1872,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
         </div>
       )}
 
-      {/* Add animation style */}
       <style>
         {`
           @keyframes modalFadeIn {

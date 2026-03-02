@@ -1,6 +1,6 @@
 // components/AddToCartConfigModal.jsx
 import React, { useState, useEffect } from 'react';
-import { X, ShoppingCart, Check } from 'lucide-react';
+import { X, ShoppingCart } from 'lucide-react';
 
 const AddToCartConfigModal = ({ 
   isOpen, 
@@ -24,7 +24,6 @@ const AddToCartConfigModal = ({
   const [quantityOptions, setQuantityOptions] = useState([]);
   const [validationError, setValidationError] = useState('');
 
-  // Initialize when product changes
   useEffect(() => {
     if (product) {
       console.log("🔧 Config modal received product:", product);
@@ -32,10 +31,10 @@ const AddToCartConfigModal = ({
       const riceCheck = isRiceProduct ? isRiceProduct(product) : false;
       setIsRice(riceCheck);
       
-      // Get grades for rice products
+      // Get grades from Firebase only
       if (riceCheck && getRiceGrades) {
         const productGrades = getRiceGrades(product);
-        console.log("📊 Available grades:", productGrades);
+        console.log("📊 Available grades from Firebase:", productGrades);
         setGrades(productGrades);
         if (productGrades.length > 0) {
           setSelectedGrade(productGrades[0].value);
@@ -44,17 +43,17 @@ const AddToCartConfigModal = ({
         }
       }
       
-      // Get packing options
+      // Get packing options from Firebase only
       const packOptions = getPackingOptions ? getPackingOptions(product) : [];
-      console.log("📦 Packing options:", packOptions);
+      console.log("📦 Packing options from Firebase:", packOptions);
       setPackingOptions(packOptions);
       if (packOptions.length > 0) {
         setSelectedPacking(packOptions[0].value);
       }
       
-      // Get quantity options
+      // Get quantity options from Firebase only
       const qtyOptions = getQuantityOptions ? getQuantityOptions(product) : [];
-      console.log("⚖️ Quantity options:", qtyOptions);
+      console.log("⚖️ Quantity options from Firebase:", qtyOptions);
       setQuantityOptions(qtyOptions);
       if (qtyOptions.length > 0) {
         setSelectedQuantity(qtyOptions[0].value);
@@ -68,7 +67,6 @@ const AddToCartConfigModal = ({
   const handleGradeChange = (e) => {
     const gradeValue = e.target.value;
     
-    // Find the full grade object
     const selectedGradeObj = grades.find(g => g.value === gradeValue);
     if (selectedGradeObj) {
       setSelectedGrade(selectedGradeObj.value);
@@ -91,7 +89,6 @@ const AddToCartConfigModal = ({
     const qtyValue = e.target.value;
     setSelectedQuantity(qtyValue);
     
-    // Update unit based on selected quantity
     const selectedQtyObj = quantityOptions.find(q => q.value === qtyValue);
     if (selectedQtyObj) {
       setQuantityUnit(selectedQtyObj.unit || 'kg');
@@ -103,7 +100,6 @@ const AddToCartConfigModal = ({
   };
 
   const handleAddToCart = () => {
-    // Validate selections
     if (!selectedPacking) {
       setValidationError('Please select a packing option');
       return;
@@ -131,30 +127,20 @@ const AddToCartConfigModal = ({
       isRice: isRice
     });
     
-    // Create product with selected configuration
     const productWithConfig = {
-      // 🔥 CRITICAL: Include ALL product fields
       id: product.id,
       name: product.name,
       brandId: product.brandId || null,
       brandName: product.brandName || 'General',
       companyId: product.companyId || null,
       companyName: product.companyName || '',
-      
-      // Price fields
       price: product.price,
       price_usd_per_carton: product.price_usd_per_carton,
       fob_price_usd: product.fob_price_usd,
       "Ex-Mill_usd": product["Ex-Mill_usd"],
-      
-      // Image
       image: product.image,
-      
-      // Category
       category: product.category,
       categoryId: product.categoryId,
-      
-      // Product details
       origin: product.origin,
       packaging: product.packaging,
       pack_type: product.pack_type,
@@ -162,8 +148,6 @@ const AddToCartConfigModal = ({
       shelf_life: product.shelf_life,
       hsn_code: product.hsn_code,
       product_description: product.product_description,
-      
-      // 🔥 SELECTED CONFIGURATION - WITH DISPLAY NAMES
       selectedGrade: selectedGrade,
       selectedGradePrice: selectedGradePrice,
       selectedGradeDisplay: selectedGradeDisplay,
@@ -171,8 +155,6 @@ const AddToCartConfigModal = ({
       selectedQuantity: selectedQuantity,
       quantityUnit: quantityUnit,
       isRice: isRice,
-      
-      // Store complete selectedConfig object
       selectedConfig: {
         grade: selectedGrade,
         gradePrice: selectedGradePrice,
@@ -186,7 +168,6 @@ const AddToCartConfigModal = ({
     
     console.log("✅ Product with configuration ready:", productWithConfig);
     
-    // Call the parent function to add to cart
     onAddToCart(productWithConfig);
     onClose();
   };
@@ -206,7 +187,6 @@ const AddToCartConfigModal = ({
         </div>
         
         <div className="add-to-cart-config-modal-body">
-          {/* Product Info */}
           <div className="config-product-info">
             <img 
               src={product.image} 
@@ -230,25 +210,27 @@ const AddToCartConfigModal = ({
             </div>
           </div>
           
-          {/* Configuration Options */}
           <div className="config-options">
-            {/* Grade Selection - Only for Rice Products */}
             {isRice && (
               <div className="config-option-group">
                 <label className="config-option-label">
                   Select Grade <span className="required-star">*</span>
                 </label>
-                <select 
-                  value={selectedGrade} 
-                  onChange={handleGradeChange}
-                  className="config-option-select"
-                >
-                  {grades.map((grade, index) => (
-                    <option key={index} value={grade.value}>
-                      {grade.label || grade.value}
-                    </option>
-                  ))}
-                </select>
+                {grades.length > 0 ? (
+                  <select 
+                    value={selectedGrade} 
+                    onChange={handleGradeChange}
+                    className="config-option-select"
+                  >
+                    {grades.map((grade, index) => (
+                      <option key={index} value={grade.value}>
+                        {grade.label || grade.value}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="config-no-options">No grades available</div>
+                )}
                 {selectedGradePrice && (
                   <div className="config-grade-price">
                     Price: ₹{selectedGradePrice}/kg
@@ -257,40 +239,46 @@ const AddToCartConfigModal = ({
               </div>
             )}
             
-            {/* Packing Selection - For All Products */}
             <div className="config-option-group">
               <label className="config-option-label">
                 Select Packing <span className="required-star">*</span>
               </label>
-              <select 
-                value={selectedPacking} 
-                onChange={handlePackingChange}
-                className="config-option-select"
-              >
-                {packingOptions.map((option, index) => (
-                  <option key={index} value={option.value}>
-                    {option.label || option.value}
-                  </option>
-                ))}
-              </select>
+              {packingOptions.length > 0 ? (
+                <select 
+                  value={selectedPacking} 
+                  onChange={handlePackingChange}
+                  className="config-option-select"
+                >
+                  {packingOptions.map((option, index) => (
+                    <option key={index} value={option.value}>
+                      {option.label || option.value}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="config-no-options">No packing options available</div>
+              )}
             </div>
             
-            {/* Quantity Selection - For All Products */}
             <div className="config-option-group">
               <label className="config-option-label">
                 Select Quantity <span className="required-star">*</span>
               </label>
-              <select 
-                value={selectedQuantity} 
-                onChange={handleQuantityChange}
-                className="config-option-select"
-              >
-                {quantityOptions.map((option, index) => (
-                  <option key={index} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              {quantityOptions.length > 0 ? (
+                <select 
+                  value={selectedQuantity} 
+                  onChange={handleQuantityChange}
+                  className="config-option-select"
+                >
+                  {quantityOptions.map((option, index) => (
+                    <option key={index} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="config-no-options">No quantity options available</div>
+              )}
               {selectedQuantity && quantityUnit && (
                 <div className="config-quantity-unit">
                   Unit: {quantityUnit}
@@ -298,7 +286,6 @@ const AddToCartConfigModal = ({
               )}
             </div>
             
-            {/* Validation Error */}
             {validationError && (
               <div className="config-validation-error">
                 ⚠️ {validationError}
@@ -306,7 +293,6 @@ const AddToCartConfigModal = ({
             )}
           </div>
           
-          {/* Summary */}
           <div className="config-summary">
             <h5 className="config-summary-title">Selected Options:</h5>
             <ul className="config-summary-list">
@@ -542,6 +528,16 @@ const AddToCartConfigModal = ({
           background: #1f2937;
           color: #f1f5f9;
           padding: 10px;
+        }
+        
+        .config-no-options {
+          padding: 12px 16px;
+          background: rgba(239, 68, 68, 0.1);
+          border: 1px solid rgba(239, 68, 68, 0.3);
+          border-radius: 8px;
+          color: #fecaca;
+          font-size: 0.95rem;
+          text-align: center;
         }
         
         .config-grade-price,

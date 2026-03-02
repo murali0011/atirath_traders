@@ -81,23 +81,12 @@ const AllProducts = ({ onProductClick, onNavigate }) => {
     // Fallback to default images for known categories if no image in database
     const images = {
       rice: "/img/All_Products/Rice.jpg",
-      rice: "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=500&auto=format&fit=crop&q=60",
       chocolates: "/img/All_Products/Chocolate.webp",
       beverages: "/img/All_Products/Beverages.jpg",
       dry_fruits: "/img/All_Products/Dryfruits.jpg",
       dried_fruits: "/img/All_Products/Dried_Logo.webp",
       popcorn: "/img/All_Products/Popcorn.jpg",
-      lentils: "/img/All_Products/Lentils.avif",
       tea: "/img/All_Products/Tea.jpg",
-      oil: "/img/All_Products/oil.jpeg",
-      construction: "/img/All_Products/steel-cement.png",
-      fruits: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTJaB4CfdpehM4mzx6avwe6dBvgAl1QnuQkxA&s",
-      vegetables: "https://cdn.britannica.com/17/196817-050-6A15DAC3/vegetables.jpg?w=400&h=300&c=crop",
-      gadgets: "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=500&auto=format&fit=crop&q=60",
-      perfume: "https://images.unsplash.com/photo-1541643600914-78b084683601?w=500&auto=format&fit=crop&q=60",
-      flowers: "https://images.unsplash.com/photo-1563241527-3004b7be0ffd?w=500&auto=format&fit=crop&q=60",
-      spices: "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=500&auto=format&fit=crop&q=60",
-      clothing: "https://images.unsplash.com/photo-1445205170230-053b83016050?w=500&auto=format&fit=crop&q=60",
       default: "/img/All_Products/default-category.jpg"
     };
     
