@@ -2,8 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Building2, X, ChevronRight, ShoppingCart, Check, ShoppingBag, Package, MapPin, Clock, Tag, Layers, Award } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { database, ref, get } from '../firebase';
-import { CURRENCIES } from '../data/currency';
+import { database, ref, get, getCurrencyData } from '../firebase';
 import SingleProductBuyModal from './SingleProductBuyModal';
 import CheckoutModal from './CheckoutModal';
 import AddToCartConfigModal from './AddToCartConfigModal';
@@ -29,7 +28,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
   const [brands, setBrands] = useState([]);
   const [selectedBrand, setSelectedBrand] = useState(null);
   const [products, setProducts] = useState([]);
-  const [currency, setCurrency] = useState('AUTO');
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [isSingleProductModalOpen, setIsSingleProductModalOpen] = useState(false);
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
@@ -47,6 +45,13 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
   const [showCartSuccess, setShowCartSuccess] = useState(false);
   const [addedProduct, setAddedProduct] = useState(null);
 
+  // Currency states from Firebase
+  const [currencyRates, setCurrencyRates] = useState({});
+  const [currencySymbols, setCurrencySymbols] = useState({});
+  const [selectedCurrency, setSelectedCurrency] = useState('USD');
+  const [availableCurrencies, setAvailableCurrencies] = useState([]);
+  const [isLoadingCurrency, setIsLoadingCurrency] = useState(true);
+
   // Check mobile view
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -55,11 +60,63 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // Fetch currency data from Firebase
+  const fetchCurrencyData = async () => {
+    setIsLoadingCurrency(true);
+    try {
+      const { rates, symbols } = await getCurrencyData();
+      console.log('💰 Currency rates from Firebase:', rates);
+      console.log('💰 Currency symbols from Firebase:', symbols);
+      
+      setCurrencyRates(rates);
+      setCurrencySymbols(symbols);
+
+      // Create available currencies list
+      const currencies = Object.keys(rates).map(code => ({
+        code,
+        rate: rates[code],
+        symbol: symbols[code] || code
+      }));
+
+      setAvailableCurrencies(currencies);
+      setIsLoadingCurrency(false);
+    } catch (error) {
+      console.error('Error fetching currency data:', error);
+      setIsLoadingCurrency(false);
+    }
+  };
+
+  // Set default currency based on category
+  const setDefaultCurrencyForCategory = () => {
+    if (!categoryId || !currencyRates) return;
+
+    // Check if it's rice category
+    const isRiceCategory = categoryId === 'rice' || 
+                          categoryData?.name?.toLowerCase().includes('rice') ||
+                          categoryId?.toLowerCase().includes('rice');
+
+    if (isRiceCategory && currencyRates['INR']) {
+      console.log('🌾 Rice category detected, setting default currency to INR');
+      setSelectedCurrency('INR');
+    } else {
+      console.log('📦 Non-rice category detected, setting default currency to USD');
+      setSelectedCurrency('USD');
+    }
+  };
+
   // Fetch all data from Firebase
   useEffect(() => {
     if (!categoryId) return;
     fetchAllData();
+    fetchCurrencyData();
   }, [categoryId]);
+
+  // Set default currency after category data and currency rates are loaded
+  useEffect(() => {
+    if (categoryData && Object.keys(currencyRates).length > 0) {
+      setDefaultCurrencyForCategory();
+    }
+  }, [categoryData, currencyRates]);
 
   const fetchAllData = async () => {
     setIsLoading(true);
@@ -155,12 +212,307 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
     setFilteredProducts(filtered);
   }, [globalSearchQuery, products, productSearchQuery]);
 
+  // Convert currency using Firebase rates
   const convertCurrency = (amount, fromCurrency, toCurrency) => {
-    if (!CURRENCIES[fromCurrency] || !CURRENCIES[toCurrency]) return amount;
+    if (!amount && amount !== 0) return 0;
     if (fromCurrency === toCurrency) return amount;
+    if (!currencyRates[fromCurrency] || !currencyRates[toCurrency]) return amount;
+
+    // Convert to USD first (base currency)
+    const amountInUSD = fromCurrency === 'USD' 
+      ? amount 
+      : amount / currencyRates[fromCurrency];
     
-    let amountInUSD = fromCurrency === 'USD' ? amount : amount / CURRENCIES[fromCurrency].rateFromUSD;
-    return amountInUSD * CURRENCIES[toCurrency].rateFromUSD;
+    // Convert from USD to target currency
+    return amountInUSD * currencyRates[toCurrency];
+  };
+
+  // Get base price from product - Handles all price types
+  const getBasePrice = (product) => {
+    if (!product) return { value: 0, currency: 'USD', type: 'unknown', unit: 'unit' };
+
+    // Check for Ex-Mill_usd (Akil Drinks)
+    if (product["Ex-Mill_usd"] !== undefined) {
+      return {
+        value: product["Ex-Mill_usd"],
+        currency: 'USD',
+        type: 'EX-MILL',
+        unit: 'carton',
+        displayUnit: 'carton'
+      };
+    }
+
+    // Check for price_usd_per_carton (Heritage)
+    if (product.price_usd_per_carton !== undefined) {
+      return {
+        value: product.price_usd_per_carton,
+        currency: 'USD',
+        type: 'carton',
+        unit: 'carton',
+        displayUnit: 'carton'
+      };
+    }
+
+    // Check for fob_price_usd (Nut Walker)
+    if (product.fob_price_usd !== undefined) {
+      return {
+        value: product.fob_price_usd,
+        currency: 'USD',
+        type: 'FOB',
+        unit: 'carton',
+        displayUnit: 'carton'
+      };
+    }
+
+    // Check for INR prices (rice products)
+    if (product.price?.min !== undefined && product.price?.max !== undefined) {
+      const minPerKg = product.price.min / 100;
+      const maxPerKg = product.price.max / 100;
+      return {
+        min: minPerKg,
+        max: maxPerKg,
+        value: (minPerKg + maxPerKg) / 2,
+        currency: 'INR',
+        type: 'rice',
+        unit: 'kg',
+        displayUnit: 'kg'
+      };
+    }
+
+    // Check for grades with INR prices
+    if (product.grades && Array.isArray(product.grades) && product.grades.length > 0) {
+      const firstGrade = product.grades[0];
+      if (firstGrade.price_inr) {
+        const price = parseFloat(firstGrade.price_inr);
+        return {
+          value: price,
+          currency: 'INR',
+          type: 'rice',
+          unit: 'kg',
+          displayUnit: 'kg'
+        };
+      }
+    }
+
+    // Generic price object
+    if (product.price && typeof product.price === 'object') {
+      if (product.price.currency && product.price.value !== undefined) {
+        return {
+          value: product.price.value,
+          currency: product.price.currency,
+          type: 'fixed',
+          unit: product.price.unit || 'unit',
+          displayUnit: product.price.unit || 'unit'
+        };
+      }
+    }
+
+    // Number price - Check company/category to determine currency
+    if (typeof product.price === 'number') {
+      // Check if it's a rice product (INR)
+      if (isRiceProduct(product)) {
+        return {
+          value: product.price,
+          currency: 'INR',
+          type: 'rice',
+          unit: 'kg',
+          displayUnit: 'kg'
+        };
+      }
+      // Default to USD for non-rice products
+      return {
+        value: product.price,
+        currency: 'USD',
+        type: 'fixed',
+        unit: 'unit',
+        displayUnit: 'unit'
+      };
+    }
+
+    return {
+      value: 0,
+      currency: 'USD',
+      type: 'unknown',
+      unit: 'unit',
+      displayUnit: 'unit'
+    };
+  };
+
+  // Get product price in exact display format
+  const getProductPriceDisplay = (product) => {
+    if (!product) return 'Contact for Price';
+
+    const basePrice = getBasePrice(product);
+    
+    // If selected currency matches base currency, show without conversion
+    if (selectedCurrency === basePrice.currency) {
+      // Rice products - Show as ₹X - ₹Y / kg
+      if (basePrice.type === 'rice' && basePrice.min !== undefined && basePrice.max !== undefined) {
+        return `₹${basePrice.min.toFixed(2)} - ₹${basePrice.max.toFixed(2)} / kg`;
+      }
+      
+      // Single rice product
+      if (basePrice.type === 'rice' && basePrice.value) {
+        return `₹${basePrice.value.toFixed(2)} / kg`;
+      }
+      
+      // EX-MILL products (Akil Drinks)
+      if (basePrice.type === 'EX-MILL') {
+        return `$${basePrice.value.toFixed(2)} EX-MILL / carton`;
+      }
+      
+      // FOB products (Nut Walker)
+      if (basePrice.type === 'FOB') {
+        return `$${basePrice.value.toFixed(2)} FOB / carton`;
+      }
+      
+      // Regular carton products (Heritage)
+      if (basePrice.type === 'carton') {
+        return `$${basePrice.value.toFixed(2)} / carton`;
+      }
+      
+      // Other products
+      if (basePrice.value) {
+        const symbol = basePrice.currency === 'INR' ? '₹' : 
+                      basePrice.currency === 'USD' ? '$' : 
+                      currencySymbols[basePrice.currency] || basePrice.currency;
+        
+        if (basePrice.unit === 'carton') {
+          return `${symbol}${basePrice.value.toFixed(2)} / carton`;
+        } else if (basePrice.unit === 'kg') {
+          return `${symbol}${basePrice.value.toFixed(2)} / kg`;
+        } else {
+          return `${symbol}${basePrice.value.toFixed(2)} / ${basePrice.unit}`;
+        }
+      }
+    } else {
+      // Convert to selected currency
+      const convertedValue = convertCurrency(basePrice.value || basePrice.min || 0, basePrice.currency, selectedCurrency);
+      const symbol = currencySymbols[selectedCurrency] || 
+                    (selectedCurrency === 'INR' ? '₹' : 
+                     selectedCurrency === 'USD' ? '$' : selectedCurrency);
+      
+      // Rice products with range
+      if (basePrice.type === 'rice' && basePrice.min !== undefined && basePrice.max !== undefined) {
+        const convertedMin = convertCurrency(basePrice.min, basePrice.currency, selectedCurrency);
+        const convertedMax = convertCurrency(basePrice.max, basePrice.currency, selectedCurrency);
+        return `${symbol}${convertedMin.toFixed(2)} - ${symbol}${convertedMax.toFixed(2)} / kg`;
+      }
+      
+      // EX-MILL products
+      if (basePrice.type === 'EX-MILL') {
+        return `${symbol}${convertedValue.toFixed(2)} EX-MILL / carton`;
+      }
+      
+      // FOB products
+      if (basePrice.type === 'FOB') {
+        return `${symbol}${convertedValue.toFixed(2)} FOB / carton`;
+      }
+      
+      // Other products
+      return `${symbol}${convertedValue.toFixed(2)} / ${basePrice.displayUnit}`;
+    }
+
+    return 'Contact for Price';
+  };
+
+  // Get product price in selected currency (for conversion)
+  const getProductPriceInSelectedCurrency = (product) => {
+    if (!product) return { display: 'Contact for Price', value: 0, currency: selectedCurrency };
+
+    const basePrice = getBasePrice(product);
+    
+    // If selected currency is different from base currency, convert
+    if (selectedCurrency !== basePrice.currency) {
+      const convertedValue = convertCurrency(basePrice.value || basePrice.min || 0, basePrice.currency, selectedCurrency);
+      const symbol = currencySymbols[selectedCurrency] || 
+                    (selectedCurrency === 'INR' ? '₹' : 
+                     selectedCurrency === 'USD' ? '$' : selectedCurrency);
+      
+      if (basePrice.type === 'EX-MILL') {
+        return {
+          display: `${symbol}${convertedValue.toFixed(2)} EX-MILL / carton`,
+          value: convertedValue,
+          currency: selectedCurrency
+        };
+      }
+      
+      if (basePrice.type === 'FOB') {
+        return {
+          display: `${symbol}${convertedValue.toFixed(2)} FOB / carton`,
+          value: convertedValue,
+          currency: selectedCurrency
+        };
+      }
+      
+      if (basePrice.type === 'rice' && basePrice.min !== undefined && basePrice.max !== undefined) {
+        const convertedMin = convertCurrency(basePrice.min, basePrice.currency, selectedCurrency);
+        const convertedMax = convertCurrency(basePrice.max, basePrice.currency, selectedCurrency);
+        return {
+          display: `${symbol}${convertedMin.toFixed(2)} - ${symbol}${convertedMax.toFixed(2)} / kg`,
+          min: convertedMin,
+          max: convertedMax,
+          value: (convertedMin + convertedMax) / 2,
+          currency: selectedCurrency
+        };
+      }
+      
+      return {
+        display: `${symbol}${convertedValue.toFixed(2)} / ${basePrice.displayUnit}`,
+        value: convertedValue,
+        currency: selectedCurrency
+      };
+    }
+    
+    // Same currency - return base display
+    return {
+      display: getProductPriceDisplay(product),
+      value: basePrice.value || basePrice.min || 0,
+      currency: basePrice.currency
+    };
+  };
+
+  // ============================================
+  // GET PRODUCT PRICE FOR DISPLAY
+  // ============================================
+  const getProductPrice = (product) => {
+    return getProductPriceDisplay(product);
+  };
+
+  // ============================================
+  // GET PRODUCT PRICE FOR CART
+  // ============================================
+  const getProductPriceForCart = (product) => {
+    const priceDisplay = getProductPriceDisplay(product);
+    const basePrice = getBasePrice(product);
+
+    if (basePrice.type === 'rice' && basePrice.min !== undefined && basePrice.max !== undefined) {
+      return {
+        type: 'rice',
+        minPerKg: basePrice.min,
+        maxPerKg: basePrice.max,
+        min: basePrice.min,
+        max: basePrice.max,
+        unit: 'kg',
+        currency: 'INR',
+        display: priceDisplay
+      };
+    }
+
+    if (basePrice.value) {
+      return {
+        type: basePrice.type,
+        value: basePrice.value,
+        currency: basePrice.currency,
+        display: priceDisplay,
+        unit: basePrice.displayUnit
+      };
+    }
+
+    return {
+      type: 'unknown',
+      display: 'Contact for Price'
+    };
   };
 
   // Load brands when company is selected
@@ -306,127 +658,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
   };
 
   // ============================================
-  // GET PRODUCT PRICE FOR DISPLAY
-  // ============================================
-  const getProductPrice = (product) => {
-    const resolveCurrency = (baseCurrency) => {
-      return currency === 'AUTO' ? baseCurrency : currency;
-    };
-
-    if (product.price?.min !== undefined && product.price?.max !== undefined) {
-      const base = 'INR';
-      const target = resolveCurrency(base);
-      
-      const minPerKg = product.price.min / 100;
-      const maxPerKg = product.price.max / 100;
-      
-      const minConverted = convertCurrency(minPerKg, base, target);
-      const maxConverted = convertCurrency(maxPerKg, base, target);
-      
-      const symbol = CURRENCIES[target]?.symbol || (target === 'INR' ? '₹' : '$');
-      
-      return `${symbol}${minConverted.toFixed(2)} - ${symbol}${maxConverted.toFixed(2)} / kg`;
-    }
-
-    if (product["Ex-Mill_usd"] !== undefined) {
-      const base = 'USD';
-      const target = resolveCurrency(base);
-      const value = convertCurrency(product["Ex-Mill_usd"], base, target);
-      const symbol = CURRENCIES[target]?.symbol || '$';
-      return `${symbol}${value.toFixed(2)} EX-MILL`;
-    }
-
-    if (product.price_usd_per_carton !== undefined) {
-      const base = 'USD';
-      const target = resolveCurrency(base);
-      const value = convertCurrency(product.price_usd_per_carton, base, target);
-      const symbol = CURRENCIES[target]?.symbol || '$';
-      return `${symbol}${value.toFixed(2)} / carton`;
-    }
-
-    if (product.fob_price_usd !== undefined) {
-      const base = 'USD';
-      const target = resolveCurrency(base);
-      const value = convertCurrency(product.fob_price_usd, base, target);
-      const symbol = CURRENCIES[target]?.symbol || '$';
-      return `${symbol}${value.toFixed(2)} FOB`;
-    }
-
-    if (product.price !== undefined && typeof product.price === 'number') {
-      const base = 'USD';
-      const target = resolveCurrency(base);
-      const value = convertCurrency(product.price, base, target);
-      const symbol = CURRENCIES[target]?.symbol || '$';
-      return `${symbol}${value.toFixed(2)}`;
-    }
-
-    return 'Contact for Price';
-  };
-
-  // ============================================
-  // GET PRODUCT PRICE FOR CART
-  // ============================================
-  const getProductPriceForCart = (product) => {
-    if (product.price?.min !== undefined && product.price?.max !== undefined) {
-      return {
-        type: 'rice',
-        minPerKg: product.price.min / 100,
-        maxPerKg: product.price.max / 100,
-        min: product.price.min / 100,
-        max: product.price.max / 100,
-        unit: 'kg',
-        currency: 'INR',
-        display: `₹${(product.price.min / 100).toFixed(2)} - ₹${(product.price.max / 100).toFixed(2)} / kg`
-      };
-    }
-
-    if (product["Ex-Mill_usd"] !== undefined) {
-      return {
-        type: 'carton',
-        value: product["Ex-Mill_usd"],
-        currency: 'USD',
-        display: `$${product["Ex-Mill_usd"].toFixed(2)} EX-MILL`,
-        unit: 'carton'
-      };
-    }
-
-    if (product.price_usd_per_carton !== undefined) {
-      return {
-        type: 'carton',
-        value: product.price_usd_per_carton,
-        currency: 'USD',
-        display: `$${product.price_usd_per_carton.toFixed(2)} / carton`,
-        unit: 'carton'
-      };
-    }
-
-    if (product.fob_price_usd !== undefined) {
-      return {
-        type: 'carton',
-        value: product.fob_price_usd,
-        currency: 'USD',
-        display: `$${product.fob_price_usd.toFixed(2)} FOB`,
-        unit: 'carton'
-      };
-    }
-
-    if (product.price !== undefined && typeof product.price === 'number') {
-      return {
-        type: 'fixed',
-        value: product.price,
-        currency: 'USD',
-        display: `$${product.price.toFixed(2)}`,
-        unit: 'unit'
-      };
-    }
-
-    return {
-      type: 'unknown',
-      display: 'Contact for Price'
-    };
-  };
-
-  // ============================================
   // CHECK IF PRODUCT IS RICE
   // ============================================
   const isRiceProduct = (product) => {
@@ -448,7 +679,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
   };
 
   // ============================================
-  // GET PACKING OPTIONS FOR PRODUCT - ONLY from Firebase + Rice fallback
+  // GET PACKING OPTIONS FOR PRODUCT
   // ============================================
   const getPackingOptions = (product) => {
     if (!product) return [];
@@ -497,14 +728,14 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
   };
 
   // ============================================
-  // GET QUANTITY OPTIONS FOR PRODUCT - ONLY from ProductData.js
+  // GET QUANTITY OPTIONS FOR PRODUCT
   // ============================================
   const getQuantityOptions = (product) => {
     return getQuantityOptionsForProduct(product);
   };
 
   // ============================================
-  // GET QUANTITY UNIT - ONLY from ProductData.js
+  // GET QUANTITY UNIT
   // ============================================
   const getQuantityUnitFromProductData = (product) => {
     return getQuantityUnit(product);
@@ -557,17 +788,16 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
 
   // Get per unit price for carton products
   const getPerUnitPrice = (product) => {
-    if (product.price_usd_per_carton && product.packaging?.units_per_carton) {
-      const perUnitUSD = product.price_usd_per_carton / product.packaging.units_per_carton;
+    const basePrice = getBasePrice(product);
+    
+    if (basePrice.type !== 'rice' && basePrice.unit === 'carton' && product.packaging?.units_per_carton) {
+      const perUnitBase = basePrice.value / product.packaging.units_per_carton;
+      const perUnitConverted = convertCurrency(perUnitBase, basePrice.currency, selectedCurrency);
+      const symbol = currencySymbols[selectedCurrency] || 
+                    (selectedCurrency === 'INR' ? '₹' : 
+                     selectedCurrency === 'USD' ? '$' : selectedCurrency);
       return {
-        perUnit: `$${perUnitUSD.toFixed(2)} per unit`
-      };
-    }
-
-    if (product.fob_price_usd && product.packaging?.units_per_carton) {
-      const perUnitUSD = product.fob_price_usd / product.packaging.units_per_carton;
-      return {
-        perUnit: `$${perUnitUSD.toFixed(2)} per unit`
+        perUnit: `${symbol}${perUnitConverted.toFixed(2)} per unit`
       };
     }
     return null;
@@ -577,6 +807,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
   const getProductSpecs = (product) => {
     const specs = [];
     const isRice = isRiceProduct(product);
+    const basePrice = getBasePrice(product);
     
     if (isRice) {
       if (product.origin) {
@@ -593,14 +824,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
           label: 'Available Grades',
           value: gradeNames,
           icon: <Layers size={18} className="me-2" style={{ color: '#10b981' }} />
-        });
-      }
-      
-      if (product.price?.min !== undefined && product.price?.max !== undefined) {
-        specs.push({
-          label: 'Price Range',
-          value: `₹${(product.price.min / 100).toFixed(2)} - ₹${(product.price.max / 100).toFixed(2)} / kg`,
-          icon: <Tag size={18} className="me-2" style={{ color: '#10b981' }} />
         });
       }
     } else {
@@ -664,14 +887,6 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
         });
       }
       
-      if (product.fob_price_usd !== undefined) {
-        specs.push({
-          label: 'FOB Price',
-          value: `$${product.fob_price_usd.toFixed(2)} USD`,
-          icon: <Tag size={18} className="me-2" style={{ color: '#10b981' }} />
-        });
-      }
-      
       if (product.hsn_code) {
         specs.push({
           label: 'HSN Code',
@@ -722,12 +937,20 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
 
   // Handle order now - single product
   const handleOrderNow = (product) => {
+    const basePrice = getBasePrice(product);
+    const priceDisplay = getProductPriceDisplay(product);
+    
     setSelectedProduct({
       ...product,
       quantity: 1,
       category: categoryData?.name || categoryId,
       company: product.companyName,
-      brand: product.brandName || 'General'
+      brand: product.brandName || 'General',
+      selectedCurrency: selectedCurrency,
+      priceDisplay: priceDisplay,
+      basePrice: basePrice,
+      currencyRates: currencyRates,
+      currencySymbols: currencySymbols
     });
     setIsSingleProductModalOpen(true);
   };
@@ -737,6 +960,8 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
     console.log("📦 Opening add to cart config for product:", product);
     
     const isRice = isRiceProduct(product);
+    const basePrice = getBasePrice(product);
+    const priceDisplay = getProductPriceDisplay(product);
     
     const brandId = product.brandId || null;
     const brandName = product.brandName || 'General';
@@ -762,7 +987,13 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
       shelf_life: product.shelf_life,
       hsn_code: product.hsn_code,
       product_description: product.product_description,
-      isRice: isRice
+      isRice: isRice,
+      // Add currency info
+      selectedCurrency: selectedCurrency,
+      priceDisplay: priceDisplay,
+      basePrice: basePrice,
+      currencyRates: currencyRates,
+      currencySymbols: currencySymbols
     };
     
     console.log("✅ Product prepared for config modal:", productForConfig);
@@ -774,7 +1005,8 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
   const handleAddToCartWithConfig = (productWithConfig) => {
     console.log("📦 ProductPage: Adding product to cart with configuration:", productWithConfig);
     
-    const priceInfo = getProductPriceForCart(productWithConfig);
+    const basePrice = productWithConfig.basePrice || getBasePrice(productWithConfig);
+    const priceDisplay = productWithConfig.priceDisplay || getProductPriceDisplay(productWithConfig);
     
     const enhancedProduct = {
       id: productWithConfig.id,
@@ -784,10 +1016,21 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
       brandName: productWithConfig.brandName || 'General',
       companyId: productWithConfig.companyId || null,
       companyName: productWithConfig.companyName || '',
-      price: priceInfo,
+      // Store price info
+      price: {
+        value: basePrice.value || basePrice.min || 0,
+        display: priceDisplay,
+        currency: selectedCurrency,
+        type: basePrice.type,
+        unit: basePrice.displayUnit,
+        baseCurrency: basePrice.currency,
+        baseValue: basePrice.value || basePrice.min || 0
+      },
+      // Also store original price fields for reference
       price_usd_per_carton: productWithConfig.price_usd_per_carton,
       fob_price_usd: productWithConfig.fob_price_usd,
       "Ex-Mill_usd": productWithConfig["Ex-Mill_usd"],
+      
       image: productWithConfig.image || getFallbackImage(),
       category: productWithConfig.category || categoryData?.name || categoryId,
       categoryId: categoryId,
@@ -824,7 +1067,16 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
           quantityUnit: productWithConfig.quantityUnit || getQuantityUnitFromProductData(productWithConfig) || 'kg',
           isRice: productWithConfig.isRice || false
         }
-      }
+      },
+      // Store currency info in cart item
+      cartCurrency: selectedCurrency,
+      cartCurrencySymbol: currencySymbols[selectedCurrency] || 
+                          (selectedCurrency === 'INR' ? '₹' : 
+                           selectedCurrency === 'USD' ? '$' : selectedCurrency),
+      cartBaseCurrency: basePrice.currency,
+      cartBaseValue: basePrice.value || basePrice.min || 0,
+      cartUnit: basePrice.displayUnit,
+      cartPriceType: basePrice.type
     };
     
     console.log("✅ Enhanced product ready for cart:", enhancedProduct);
@@ -865,7 +1117,14 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
       selectedQuantity: item.selectedQuantity || 1,
       quantityUnit: item.quantityUnit || getQuantityUnitFromProductData(item) || 'unit',
       isRice: item.isRice || false,
-      cartItemId: item.cartItemId
+      cartItemId: item.cartItemId,
+      // Pass currency info to checkout
+      cartCurrency: item.cartCurrency,
+      cartCurrencySymbol: item.cartCurrencySymbol,
+      cartBaseCurrency: item.cartBaseCurrency,
+      cartBaseValue: item.cartBaseValue,
+      cartUnit: item.cartUnit,
+      cartPriceType: item.cartPriceType
     }));
     
     setCheckoutProductsLocal(cartProductsForCheckout);
@@ -905,7 +1164,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
   };
 
   // Loading state
-  if (isLoading) {
+  if (isLoading || isLoadingCurrency) {
     return (
       <div className="product-page" style={{
         minHeight: '100vh',
@@ -918,7 +1177,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
             <div className="spinner-border text-primary" role="status">
               <span className="visually-hidden">Loading...</span>
             </div>
-            <p className="mt-3">Loading products...</p>
+            <p className="mt-3">Loading products and currency data...</p>
           </div>
         </div>
       </div>
@@ -1154,8 +1413,8 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
             }}>
               <select
                 className="form-select currency-dropdown"
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
+                value={selectedCurrency}
+                onChange={(e) => setSelectedCurrency(e.target.value)}
                 style={{
                   background: 'rgba(31, 41, 55, 0.8)',
                   border: '1px solid rgba(64, 150, 226, 0.3)',
@@ -1167,10 +1426,9 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
                   cursor: 'pointer'
                 }}
               >
-                <option value="AUTO">Auto (Original Currency)</option>
-                {Object.entries(CURRENCIES).map(([code, data]) => (
-                  <option key={code} value={code}>
-                    {data.symbol} {code}
+                {availableCurrencies.map((currency) => (
+                  <option key={currency.code} value={currency.code}>
+                    {currency.symbol} {currency.code}
                   </option>
                 ))}
               </select>
@@ -1250,6 +1508,8 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
               const inCart = isProductInCart(product.id);
               const cartQuantity = getCartQuantity(product.id);
               const isRice = isRiceProduct(product);
+              const priceDisplay = getProductPriceDisplay(product);
+              const basePrice = getBasePrice(product);
               
               return (
                 <div key={product.id} className="col-12 col-sm-6 col-md-4 col-lg-3">
@@ -1301,8 +1561,8 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
                         </p>
                       )}
                       
-                      <p className="product-price fw-bold mb-2" style={{ color: '#4096e2' }}>
-                        {getProductPrice(product)}
+                      <p className="product-price fw-bold mb-2" style={{ color: '#4096e2', fontSize: '1.1rem' }}>
+                        {priceDisplay}
                       </p>
                       
                       {isRice && (
@@ -1350,6 +1610,13 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
                                     : product.packaging}
                                 </strong>
                               </span>
+                            </div>
+                          )}
+                          
+                          {perUnitPriceData && (
+                            <div className="d-flex align-items-center mb-1" style={{ color: '#10b981' }}>
+                              <Tag size={12} className="me-1" />
+                              <span>{perUnitPriceData.perUnit}</span>
                             </div>
                           )}
                           
@@ -1514,6 +1781,9 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
         product={selectedProduct}
         profile={profile || null}
         onOrderSubmitted={handleOrderSubmitted}
+        currencyRates={currencyRates}
+        currencySymbols={currencySymbols}
+        selectedCurrency={selectedCurrency}
       />
 
       <AddToCartConfigModal
@@ -1528,6 +1798,9 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
         getPackingOptions={getPackingOptions}
         getQuantityOptions={getQuantityOptions}
         isRiceProduct={isRiceProduct}
+        currencyRates={currencyRates}
+        currencySymbols={currencySymbols}
+        selectedCurrency={selectedCurrency}
       />
 
       <CheckoutModal
@@ -1539,6 +1812,9 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
         products={checkoutProducts}
         profile={profile || null}
         onOrderSubmitted={handleOrderSubmitted}
+        currencyRates={currencyRates}
+        currencySymbols={currencySymbols}
+        selectedCurrency={selectedCurrency}
       />
 
       {showDetailsModal && detailedProduct && (
@@ -1704,7 +1980,7 @@ const ProductPage = ({ profile, globalSearchQuery = '', onGlobalSearchClear, isA
                     boxShadow: '0 8px 20px rgba(16, 185, 129, 0.1)'
                   }}>
                     <div style={{ fontSize: '0.95rem', color: '#047857', marginBottom: '8px', fontWeight: '500', letterSpacing: '0.5px' }}>
-                      PRICE
+                      PRICE ({selectedCurrency})
                     </div>
                     <div style={{ 
                       color: '#0f172a', 

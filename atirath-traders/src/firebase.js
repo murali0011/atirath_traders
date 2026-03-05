@@ -1,4 +1,4 @@
-// firebase.js - Complete Updated Version with Separate Collections and History
+// firebase.js - Complete Updated Version with Currency Functions
 import { initializeApp, getApps } from "firebase/app";
 import { getAnalytics, isSupported } from "firebase/analytics";
 import {
@@ -58,6 +58,72 @@ if (!getApps().length) {
   auth = getAuth(app);
   database = getDatabase(app);
 }
+
+/* ==========================================================================
+   CURRENCY FUNCTIONS - Fetch only from existing database
+========================================================================== */
+
+/**
+ * Get all currency rates from Firebase
+ * @returns {Object} Currency rates object
+ */
+export const getCurrencyRates = async () => {
+  try {
+    const ratesRef = ref(database, 'currency/rates');
+    const snapshot = await get(ratesRef);
+    
+    if (snapshot.exists()) {
+      console.log('💰 Currency rates loaded from Firebase:', snapshot.val());
+      return snapshot.val();
+    } else {
+      console.log('⚠️ No currency rates found in Firebase');
+      return {};
+    }
+  } catch (error) {
+    console.error('❌ Error fetching currency rates:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get all currency symbols from Firebase
+ * @returns {Object} Currency symbols object
+ */
+export const getCurrencySymbols = async () => {
+  try {
+    const symbolsRef = ref(database, 'currency/symbols');
+    const snapshot = await get(symbolsRef);
+    
+    if (snapshot.exists()) {
+      console.log('💰 Currency symbols loaded from Firebase:', snapshot.val());
+      return snapshot.val();
+    } else {
+      console.log('⚠️ No currency symbols found in Firebase');
+      return {};
+    }
+  } catch (error) {
+    console.error('❌ Error fetching currency symbols:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get all currency data in one call
+ * @returns {Object} Object containing rates and symbols
+ */
+export const getCurrencyData = async () => {
+  try {
+    const [rates, symbols] = await Promise.all([
+      getCurrencyRates(),
+      getCurrencySymbols()
+    ]);
+    
+    return { rates, symbols };
+  } catch (error) {
+    console.error('❌ Error fetching currency data:', error);
+    throw error;
+  }
+};
 
 /* ==========================================================================
    HELPER FUNCTIONS
@@ -1542,6 +1608,11 @@ export default {
   app, 
   auth, 
   database,
+  
+  // Currency functions - ONLY FETCH from existing database
+  getCurrencyRates,
+  getCurrencySymbols,
+  getCurrencyData,
   
   // History functions
   logHistoryAction,

@@ -33,7 +33,11 @@ const cartReducer = (state, action) => {
         ...action.payload, 
         quantity: action.payload.quantity || 1,
         addedAt: new Date().toISOString(),
-        cartItemId: `${action.payload.id}_${action.payload.brandId || 'nobrand'}_${action.payload.selectedGrade || 'nograde'}_${Date.now()}`
+        cartItemId: `${action.payload.id}_${action.payload.brandId || 'nobrand'}_${action.payload.selectedGrade || 'nograde'}_${Date.now()}`,
+        cartCurrency: action.payload.cartCurrency || 'USD',
+        cartCurrencySymbol: action.payload.cartCurrencySymbol || '$',
+        cartBaseCurrency: action.payload.cartBaseCurrency,
+        cartBaseValue: action.payload.cartBaseValue
       };
       
       const newItems = [...state.items, newItem];
@@ -55,7 +59,6 @@ const cartReducer = (state, action) => {
       
     case 'REMOVE_FROM_CART':
       const filteredItems = state.items.filter(item => item.cartItemId !== action.payload.cartItemId);
-      console.log("🗑️ REMOVE_FROM_CART: Removed item", action.payload.cartItemId, "New count:", filteredItems.length);
       return {
         ...state,
         items: filteredItems,
@@ -99,7 +102,7 @@ const cleanCartItem = (item) => {
     category: item.category || '',
     categoryId: item.categoryId || '',
     
-    // Price fields - IMPORTANT: Store all price variations
+    // 🔥 Store both converted and base price
     price: item.price || null,
     price_usd_per_carton: item.price_usd_per_carton || null,
     fob_price_usd: item.fob_price_usd || null,
@@ -116,7 +119,12 @@ const cleanCartItem = (item) => {
     origin: item.origin || null,
     packaging: item.packaging || null,
     pack_type: item.pack_type || null,
-    shelf_life: item.shelf_life || null
+    shelf_life: item.shelf_life || null,
+    
+    cartCurrency: item.cartCurrency || 'USD',
+    cartCurrencySymbol: item.cartCurrencySymbol || '$',
+    cartBaseCurrency: item.cartBaseCurrency,
+    cartBaseValue: item.cartBaseValue
   };
 };
 
@@ -147,7 +155,7 @@ export const CartProvider = ({ children }) => {
     return getGuestCartId();
   };
 
-  // Save cart to Firebase with immediate execution
+  // Save cart to Firebase
   const saveCartToFirebase = async () => {
     if (isSaving) {
       console.log("⏳ Already saving, skipping...");
@@ -161,7 +169,7 @@ export const CartProvider = ({ children }) => {
       
       const cleanedItems = state.items.map(item => cleanCartItem(item)).filter(item => item !== null);
       
-      console.log(`💾 Saving cart to Firebase: ${cartId} with ${cleanedItems.length} items`, cleanedItems);
+      console.log(`💾 Saving cart to Firebase: ${cartId} with ${cleanedItems.length} items`);
       
       const cartData = {
         cartId: cartId,
@@ -174,10 +182,8 @@ export const CartProvider = ({ children }) => {
         cartData.userId = state.user.uid;
       }
       
-      // Save to Firebase
       await set(cartRef, cartData);
       
-      // Update localStorage
       localStorage.setItem('cart_backup', JSON.stringify(cleanedItems));
       localStorage.setItem('lastCartSync', new Date().toISOString());
       
@@ -191,17 +197,14 @@ export const CartProvider = ({ children }) => {
     }
   };
 
-  // Remove single item from cart - Immediate save
+  // Remove single item from cart
   const removeFromCart = async (cartItemId) => {
     console.log("🗑️ Removing item:", cartItemId);
     
-    // First update local state
     dispatch({ type: 'REMOVE_FROM_CART', payload: { cartItemId } });
     
-    // Get updated items after dispatch
     const updatedItems = state.items.filter(item => item.cartItemId !== cartItemId);
     
-    // Immediately save to Firebase
     try {
       const cartId = getCartId();
       const cartRef = ref(database, `carts/${cartId}`);
@@ -233,15 +236,12 @@ export const CartProvider = ({ children }) => {
   const clearCart = async () => {
     console.log("🗑️ Clearing entire cart...");
     
-    // Update local state
     dispatch({ type: 'CLEAR_CART' });
     
-    // Clear from Firebase
     try {
       const cartId = getCartId();
       const cartRef = ref(database, `carts/${cartId}`);
       
-      // Set empty cart in Firebase
       await set(cartRef, {
         cartId: cartId,
         isGuest: !state.user,
@@ -249,7 +249,6 @@ export const CartProvider = ({ children }) => {
         items: []
       });
       
-      // Clear localStorage
       localStorage.removeItem('cart_backup');
       localStorage.removeItem('lastCartSync');
       
@@ -286,7 +285,6 @@ export const CartProvider = ({ children }) => {
             console.log(`📦 Loaded ${parsedCart.length} items from localStorage`);
             dispatch({ type: 'LOAD_CART', payload: parsedCart });
             
-            // Sync to Firebase
             setTimeout(() => {
               saveCartToFirebase();
             }, 100);
@@ -420,7 +418,6 @@ export const CartProvider = ({ children }) => {
         
         await set(userCartRef, userCartData);
         
-        // Remove guest cart
         await remove(guestCartRef);
         
         localStorage.removeItem('guestCartId');
@@ -458,81 +455,12 @@ export const CartProvider = ({ children }) => {
   }, [state.items, isInitialized]);
 
   // ============================================
-  // FIXED: ADD TO CART FUNCTION - Handles ALL product types
+  // ADD TO CART FUNCTION - Stores base price
   // ============================================
   const addToCart = (product) => {
     console.log("📦 Adding to cart with selected configuration:", product);
     
     const cartItemId = `${product.id}_${product.brandId || 'nobrand'}_${product.selectedGrade || 'nograde'}_${Date.now()}`;
-    
-    // IMPROVED PRICE HANDLING - Handle ALL product types
-    let calculatedPrice;
-    
-    // Check if it's a rice product with selected grade price
-    if (product.isRice && product.selectedGradePrice) {
-      calculatedPrice = {
-        type: 'rice',
-        min: parseFloat(product.selectedGradePrice),
-        max: parseFloat(product.selectedGradePrice),
-        unit: 'kg',
-        currency: 'INR',
-        display: `₹${product.selectedGradePrice}/kg`
-      };
-    }
-    // Check for price_usd_per_carton (Heritage products)
-    else if (product.price_usd_per_carton !== undefined) {
-      calculatedPrice = {
-        type: 'carton',
-        value: parseFloat(product.price_usd_per_carton),
-        currency: 'USD',
-        display: `$${parseFloat(product.price_usd_per_carton).toFixed(2)} / carton`,
-        unit: 'carton'
-      };
-    }
-    // Check for fob_price_usd (Nut Walker products)
-    else if (product.fob_price_usd !== undefined) {
-      calculatedPrice = {
-        type: 'carton',
-        value: parseFloat(product.fob_price_usd),
-        currency: 'USD',
-        display: `$${parseFloat(product.fob_price_usd).toFixed(2)} FOB`,
-        unit: 'carton'
-      };
-    }
-    // Check for Ex-Mill_usd (Akil Drinks)
-    else if (product["Ex-Mill_usd"] !== undefined) {
-      calculatedPrice = {
-        type: 'carton',
-        value: parseFloat(product["Ex-Mill_usd"]),
-        currency: 'USD',
-        display: `$${parseFloat(product["Ex-Mill_usd"]).toFixed(2)} EX-MILL`,
-        unit: 'carton'
-      };
-    }
-    // Check for regular price object
-    else if (product.price && typeof product.price === 'object') {
-      calculatedPrice = {
-        ...product.price,
-        type: product.price.type || 'fixed'
-      };
-    }
-    // Check for regular price number
-    else if (product.price && typeof product.price === 'number') {
-      calculatedPrice = {
-        type: 'fixed',
-        value: parseFloat(product.price),
-        currency: 'USD',
-        display: `$${parseFloat(product.price).toFixed(2)}`,
-        unit: 'unit'
-      };
-    }
-    // Default fallback
-    else {
-      calculatedPrice = {
-        type: 'unknown',
-        display: 'Contact for Price'
-      };
-    }
     
     const itemToAdd = {
       id: product.id || '',
@@ -547,10 +475,9 @@ export const CartProvider = ({ children }) => {
       companyId: product.companyId || null,
       companyName: product.companyName || '',
       
-      // IMPORTANT: Store the calculated price
-      price: calculatedPrice,
+      // 🔥 Store the complete price object with both converted and base
+      price: product.price || null,
       
-      // Also store original price fields for reference
       price_usd_per_carton: product.price_usd_per_carton,
       fob_price_usd: product.fob_price_usd,
       "Ex-Mill_usd": product["Ex-Mill_usd"],
@@ -570,7 +497,12 @@ export const CartProvider = ({ children }) => {
       origin: product.origin || null,
       packaging: product.packaging || null,
       pack_type: product.pack_type || null,
-      shelf_life: product.shelf_life || null
+      shelf_life: product.shelf_life || null,
+      
+      cartCurrency: product.cartCurrency || 'USD',
+      cartCurrencySymbol: product.cartCurrencySymbol || '$',
+      cartBaseCurrency: product.cartBaseCurrency,
+      cartBaseValue: product.cartBaseValue
     };
     
     console.log("✅ Added to cart with price:", itemToAdd.price);
@@ -591,20 +523,12 @@ export const CartProvider = ({ children }) => {
   const getTotalPrice = () => {
     let total = 0;
     state.items.forEach(item => {
-      if (item.selectedGradePrice) {
-        const pricePerKg = parseFloat(item.selectedGradePrice);
-        const packageSize = parseFloat(item.selectedQuantity) || 1;
-        const numberOfPackages = item.quantity || 1;
-        total += pricePerKg * packageSize * numberOfPackages;
-      } else if (item.price && typeof item.price === 'object') {
-        if (item.price.min !== undefined) {
-          const avgPrice = (parseFloat(item.price.min) + parseFloat(item.price.max)) / 2;
-          const packageSize = parseFloat(item.selectedQuantity) || 1;
-          const numberOfPackages = item.quantity || 1;
-          total += avgPrice * packageSize * numberOfPackages;
-        } else if (item.price.value) {
-          total += parseFloat(item.price.value) * (item.quantity || 1);
-        }
+      if (item.price?.converted?.value) {
+        total += parseFloat(item.price.converted.value) * (item.quantity || 1);
+      } else if (item.price?.value) {
+        total += parseFloat(item.price.value) * (item.quantity || 1);
+      } else if (item.selectedGradePrice) {
+        total += parseFloat(item.selectedGradePrice) * (item.quantity || 1);
       } else if (item.price_usd_per_carton) {
         total += parseFloat(item.price_usd_per_carton) * (item.quantity || 1);
       } else if (item.fob_price_usd) {

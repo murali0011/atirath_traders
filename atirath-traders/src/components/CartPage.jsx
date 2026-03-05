@@ -16,7 +16,7 @@ import {
   ShoppingBag
 } from 'lucide-react';
 import CheckoutModal from './CheckoutModal';
-import { database, ref, get } from '../firebase'; // 🔥 Import Firebase
+import { database, ref, get } from '../firebase';
 
 const CartPage = () => {
   const navigate = useNavigate();
@@ -38,11 +38,15 @@ const CartPage = () => {
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [checkoutProducts, setCheckoutProductsLocal] = useState([]);
   
-  // 🔥 FIXED: State for complete user profile from database
+  // State for complete user profile from database
   const [completeProfile, setCompleteProfile] = useState(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
 
-  // 🔥 FIXED: Fetch complete user data from Firebase when user changes
+  // Currency states from Firebase
+  const [currencyRates, setCurrencyRates] = useState({});
+  const [currencySymbols, setCurrencySymbols] = useState({});
+
+  // Fetch complete user data from Firebase when user changes
   useEffect(() => {
     const fetchUserProfile = async () => {
       if (!user) {
@@ -133,6 +137,33 @@ const CartPage = () => {
     fetchUserProfile();
   }, [user]);
 
+  // Fetch currency data from Firebase
+  useEffect(() => {
+    const fetchCurrencyData = async () => {
+      try {
+        const [ratesSnap, symbolsSnap] = await Promise.all([
+          get(ref(database, 'currency/rates')),
+          get(ref(database, 'currency/symbols'))
+        ]);
+
+        const rates = ratesSnap.exists() ? ratesSnap.val() : { USD: 1 };
+        const symbols = symbolsSnap.exists() ? symbolsSnap.val() : { USD: '$' };
+
+        console.log('💰 Cart page currency rates:', rates);
+        console.log('💰 Cart page currency symbols:', symbols);
+
+        setCurrencyRates(rates);
+        setCurrencySymbols(symbols);
+      } catch (error) {
+        console.error('Error fetching currency data:', error);
+        setCurrencyRates({ USD: 1 });
+        setCurrencySymbols({ USD: '$' });
+      }
+    };
+
+    fetchCurrencyData();
+  }, []);
+
   useEffect(() => {
     const checkCartStatus = () => {
       const cartId = user ? `user_${user.uid}` : localStorage.getItem('guestCartId');
@@ -162,53 +193,60 @@ const CartPage = () => {
   };
 
   // ============================================
-  // Get correct currency symbol based on product
+  // Get correct currency symbol based on cart item
   // ============================================
   const getCurrencySymbol = (item) => {
-    if (item.companyName?.toLowerCase().includes('siea') || 
-        item.companyName?.toLowerCase().includes('heritage') ||
-        item.companyName?.toLowerCase().includes('sai import') ||
-        item.category === 'rice' ||
-        item.category === 'pulses' ||
-        item.category === 'spices' ||
-        item.isRice) {
+    // For rice products, always use ₹
+    if (item.isRice || item.selectedGrade || item.category === 'rice') {
       return '₹';
     }
     
-    if (item.price?.currency === 'USD' || 
-        item.price_usd_per_carton ||
-        item.fob_price_usd ||
-        item["Ex-Mill_usd"]) {
+    // For USD products
+    if (item.price_usd_per_carton || item.fob_price_usd || item["Ex-Mill_usd"]) {
       return '$';
     }
     
+    // Use the stored cart currency if available
+    if (item.cartCurrencySymbol) {
+      return item.cartCurrencySymbol;
+    }
+    
+    // Default fallback
     return '₹';
   };
 
   // ============================================
-  // Display product price with correct currency
+  // Get the correct unit price with grade
   // ============================================
-  const displayProductPrice = (item) => {
+  const getUnitPrice = (item) => {
     const currencySymbol = getCurrencySymbol(item);
     
-    if (item.selectedGradePrice) {
+    // 🔥 FIXED: If item has selected grade with price, use that directly
+    if (item.selectedGrade && item.selectedGradePrice) {
       return `${currencySymbol}${parseFloat(item.selectedGradePrice).toFixed(2)} / kg`;
     }
     
-    if (item.price && typeof item.price === 'object') {
-      if (item.price.type === 'rice' || (item.price.min !== undefined)) {
-        const min = item.price.min || 0;
-        const max = item.price.max || 0;
-        return `${currencySymbol}${min.toFixed(2)} - ${currencySymbol}${max.toFixed(2)} / kg`;
-      }
-      if (item.price.type === 'carton' && item.price.value) {
-        return `${currencySymbol}${item.price.value.toFixed(2)} / carton`;
-      }
-      if (item.price.display) {
-        return item.price.display;
-      }
+    // Check if price object exists with grade price
+    if (item.price && item.price.selectedGradePrice) {
+      return `${currencySymbol}${parseFloat(item.price.selectedGradePrice).toFixed(2)} / kg`;
     }
     
+    // If it's a rice product with range
+    if (item.isRice && item.price && item.price.min && item.price.max) {
+      return `${currencySymbol}${item.price.min.toFixed(2)} - ${currencySymbol}${item.price.max.toFixed(2)} / kg`;
+    }
+    
+    // If it has display value
+    if (item.price && item.price.display) {
+      return item.price.display;
+    }
+    
+    // If it has value
+    if (item.price && item.price.value) {
+      return `${currencySymbol}${item.price.value.toFixed(2)} / ${item.price.unit || 'kg'}`;
+    }
+    
+    // Fallback to original price fields
     if (item.price_usd_per_carton) {
       return `$${parseFloat(item.price_usd_per_carton).toFixed(2)} / carton`;
     }
@@ -225,16 +263,41 @@ const CartPage = () => {
   };
 
   // ============================================
-  // Get item total price with correct currency
+  // 🔥 FIXED: Get item total price with correct calculation
   // ============================================
   const getItemTotalPrice = (item) => {
     const currencySymbol = getCurrencySymbol(item);
     
-    if (item.selectedGradePrice) {
+    // 🔥 CRITICAL FIX: If item has selected grade with price, use that for calculation
+    if (item.selectedGrade && item.selectedGradePrice) {
       const pricePerKg = parseFloat(item.selectedGradePrice);
       const packageSize = parseFloat(item.selectedQuantity) || 1;
       const numberOfPackages = item.quantity || 1;
+      // Simple multiplication: price × quantity
       const total = pricePerKg * packageSize * numberOfPackages;
+      
+      console.log('💰 Grade price calculation:', {
+        grade: item.selectedGrade,
+        pricePerKg,
+        packageSize,
+        numberOfPackages,
+        total
+      });
+      
+      return {
+        value: total.toFixed(2),
+        isRange: false,
+        currency: currencySymbol,
+        display: `${currencySymbol}${total.toFixed(2)}`,
+        breakdown: `${pricePerKg} × ${packageSize}kg × ${numberOfPackages}`
+      };
+    }
+    
+    // Check if price object exists with converted value
+    if (item.price && item.price.value) {
+      const priceValue = parseFloat(item.price.value);
+      const numberOfPackages = item.quantity || 1;
+      const total = priceValue * numberOfPackages;
       
       return {
         value: total.toFixed(2),
@@ -244,63 +307,59 @@ const CartPage = () => {
       };
     }
     
-    if (item.price && typeof item.price === 'object') {
-      if (item.price.min !== undefined && item.price.max !== undefined) {
-        const min = item.price.min || 0;
-        const max = item.price.max || 0;
-        const packageSize = parseFloat(item.selectedQuantity) || 1;
-        const numberOfPackages = item.quantity || 1;
-        return {
-          min: (min * packageSize * numberOfPackages).toFixed(2),
-          max: (max * packageSize * numberOfPackages).toFixed(2),
-          isRange: true,
-          unit: 'kg',
-          currency: currencySymbol
-        };
-      }
+    // Rice product with range
+    if (item.isRice && item.price && item.price.min && item.price.max) {
+      const avgPrice = (parseFloat(item.price.min) + parseFloat(item.price.max)) / 2;
+      const packageSize = parseFloat(item.selectedQuantity) || 1;
+      const numberOfPackages = item.quantity || 1;
+      const total = avgPrice * packageSize * numberOfPackages;
       
-      if (item.price.value !== undefined) {
-        const priceValue = parseFloat(item.price.value) || 0;
-        const numberOfPackages = item.quantity || 1;
-        return {
-          value: (priceValue * numberOfPackages).toFixed(2),
-          isRange: false,
-          currency: currencySymbol,
-          display: `${currencySymbol}${(priceValue * numberOfPackages).toFixed(2)}`
-        };
-      }
+      return {
+        min: (parseFloat(item.price.min) * packageSize * numberOfPackages).toFixed(2),
+        max: (parseFloat(item.price.max) * packageSize * numberOfPackages).toFixed(2),
+        isRange: true,
+        currency: currencySymbol,
+        value: total.toFixed(2)
+      };
     }
     
+    // Fallback to original price fields
     if (item.price_usd_per_carton !== undefined) {
       const priceValue = parseFloat(item.price_usd_per_carton);
       const numberOfPackages = item.quantity || 1;
+      const total = priceValue * numberOfPackages;
+      
       return {
-        value: (priceValue * numberOfPackages).toFixed(2),
+        value: total.toFixed(2),
         isRange: false,
         currency: '$',
-        display: `$${(priceValue * numberOfPackages).toFixed(2)}`
+        display: `$${total.toFixed(2)}`
       };
     }
     
     if (item.fob_price_usd !== undefined) {
       const priceValue = parseFloat(item.fob_price_usd);
       const numberOfPackages = item.quantity || 1;
+      const total = priceValue * numberOfPackages;
+      
       return {
-        value: (priceValue * numberOfPackages).toFixed(2),
+        value: total.toFixed(2),
         isRange: false,
         currency: '$',
-        display: `$${(priceValue * numberOfPackages).toFixed(2)}`
+        display: `$${total.toFixed(2)}`
       };
     }
     
     if (item["Ex-Mill_usd"] !== undefined) {
       const priceValue = parseFloat(item["Ex-Mill_usd"]);
       const numberOfPackages = item.quantity || 1;
+      const total = priceValue * numberOfPackages;
+      
       return {
-        value: (priceValue * numberOfPackages).toFixed(2),
+        value: total.toFixed(2),
         isRange: false,
         currency: '$',
-        display: `$${(priceValue * numberOfPackages).toFixed(2)}`
+        display: `$${total.toFixed(2)}`
       };
     }
     
@@ -313,78 +372,53 @@ const CartPage = () => {
   };
 
   // ============================================
-  // Get unit price display with correct currency
-  // ============================================
-  const getUnitPriceDisplay = (item) => {
-    const currencySymbol = getCurrencySymbol(item);
-    
-    if (item.selectedGradePrice) {
-      return `${currencySymbol}${parseFloat(item.selectedGradePrice).toFixed(2)} / kg`;
-    }
-    
-    if (item.price && typeof item.price === 'object') {
-      if (item.price.display) {
-        return item.price.display;
-      }
-      
-      if (item.price.min !== undefined && item.price.max !== undefined) {
-        return `${currencySymbol}${item.price.min.toFixed(2)} - ${currencySymbol}${item.price.max.toFixed(2)} / kg`;
-      }
-      
-      if (item.price.value !== undefined) {
-        if (item.price.type === 'carton') {
-          return `${currencySymbol}${item.price.value.toFixed(2)} / carton`;
-        }
-        return `${currencySymbol}${item.price.value.toFixed(2)}`;
-      }
-    }
-    
-    if (item.price_usd_per_carton !== undefined) {
-      return `$${parseFloat(item.price_usd_per_carton).toFixed(2)} / carton`;
-    }
-    
-    if (item.fob_price_usd !== undefined) {
-      return `$${parseFloat(item.fob_price_usd).toFixed(2)} FOB`;
-    }
-    
-    if (item["Ex-Mill_usd"] !== undefined) {
-      return `$${parseFloat(item["Ex-Mill_usd"]).toFixed(2)} EX-MILL`;
-    }
-    
-    return 'Contact for Price';
-  };
-
-  // ============================================
-  // Calculate total cart price correctly
+  // 🔥 FIXED: Calculate total cart price correctly
   // ============================================
   const calculateTotalPrice = () => {
     let total = 0;
     items.forEach(item => {
-      if (item.selectedGradePrice) {
+      // 🔥 CRITICAL FIX: If item has selected grade with price, use that
+      if (item.selectedGrade && item.selectedGradePrice) {
         const pricePerKg = parseFloat(item.selectedGradePrice);
         const packageSize = parseFloat(item.selectedQuantity) || 1;
         const numberOfPackages = item.quantity || 1;
         total += pricePerKg * packageSize * numberOfPackages;
-      } else if (item.price && typeof item.price === 'object') {
-        if (item.price.min !== undefined) {
-          const avgPrice = (parseFloat(item.price.min) + parseFloat(item.price.max)) / 2;
-          const packageSize = parseFloat(item.selectedQuantity) || 1;
-          const numberOfPackages = item.quantity || 1;
-          total += avgPrice * packageSize * numberOfPackages;
-        } else if (item.price.value) {
-          total += parseFloat(item.price.value) * (item.quantity || 1);
-        }
-      } else if (item.price_usd_per_carton) {
+      }
+      // If price object exists
+      else if (item.price && item.price.value) {
+        total += parseFloat(item.price.value) * (item.quantity || 1);
+      }
+      // Rice product with range (use average)
+      else if (item.isRice && item.price && item.price.min && item.price.max) {
+        const avgPrice = (parseFloat(item.price.min) + parseFloat(item.price.max)) / 2;
+        const packageSize = parseFloat(item.selectedQuantity) || 1;
+        const numberOfPackages = item.quantity || 1;
+        total += avgPrice * packageSize * numberOfPackages;
+      }
+      // Fallback to original price fields
+      else if (item.price_usd_per_carton) {
         total += parseFloat(item.price_usd_per_carton) * (item.quantity || 1);
       } else if (item.fob_price_usd) {
         total += parseFloat(item.fob_price_usd) * (item.quantity || 1);
       } else if (item["Ex-Mill_usd"]) {
         total += parseFloat(item["Ex-Mill_usd"]) * (item.quantity || 1);
-      } else if (typeof item.price === 'number') {
-        total += item.price * (item.quantity || 1);
       }
     });
     return total.toFixed(2);
+  };
+
+  // ============================================
+  // Calculate tax (10%)
+  // ============================================
+  const calculateTax = (subtotal) => {
+    return (parseFloat(subtotal) * 0.1).toFixed(2);
+  };
+
+  // ============================================
+  // Calculate final total
+  // ============================================
+  const calculateFinalTotal = (subtotal, tax) => {
+    return (parseFloat(subtotal) + parseFloat(tax)).toFixed(2);
   };
 
   // ============================================
@@ -401,7 +435,26 @@ const CartPage = () => {
         </>
       );
     }
+    if (item.selectedGrade) {
+      return (
+        <>
+          <div style={{ fontWeight: 'bold' }}>{item.name}</div>
+          <div style={{ color: '#10b981', fontSize: '0.9rem', marginTop: '4px' }}>
+            Grade: {item.selectedGrade}
+          </div>
+        </>
+      );
+    }
     return <div>{item.name}</div>;
+  };
+
+  // ============================================
+  // Get package display
+  // ============================================
+  const getPackageDisplay = (item) => {
+    const packageSize = item.selectedQuantity || 1;
+    const packageUnit = item.quantityUnit || 'kg';
+    return `${packageSize}${packageUnit}`;
   };
 
   const handleCartCheckout = () => {
@@ -411,7 +464,6 @@ const CartPage = () => {
     }
 
     console.log("🛒 Preparing products for checkout from cart:", items);
-    console.log("👤 Complete profile for checkout:", completeProfile);
 
     const productsForCheckout = items.map(item => ({
       ...item,
@@ -432,7 +484,9 @@ const CartPage = () => {
       isRice: item.isRice,
       price_usd_per_carton: item.price_usd_per_carton,
       fob_price_usd: item.fob_price_usd,
-      "Ex-Mill_usd": item["Ex-Mill_usd"]
+      "Ex-Mill_usd": item["Ex-Mill_usd"],
+      cartCurrency: item.cartCurrency,
+      cartCurrencySymbol: item.cartCurrencySymbol
     }));
 
     setCheckoutProductsLocal(productsForCheckout);
@@ -514,9 +568,9 @@ const CartPage = () => {
     setCheckoutProductsLocal([]);
   };
 
-  const totalPrice = calculateTotalPrice();
-  const taxAmount = (parseFloat(totalPrice) * 0.1).toFixed(2);
-  const finalTotal = (parseFloat(totalPrice) + parseFloat(taxAmount)).toFixed(2);
+  const subtotal = calculateTotalPrice();
+  const tax = calculateTax(subtotal);
+  const finalTotal = calculateFinalTotal(subtotal, tax);
 
   if (items.length === 0) {
     return (
@@ -672,10 +726,17 @@ const CartPage = () => {
           products={checkoutProducts}
           profile={completeProfile}
           onOrderSubmitted={handleOrderSubmitted}
+          currencyRates={currencyRates}
+          currencySymbols={currencySymbols}
+          selectedCurrency={items[0]?.cartCurrency || 'INR'}
         />
       </>
     );
   }
+
+  // Determine the primary currency for the cart
+  const cartCurrency = 'INR'; // Force INR for rice products
+  const cartCurrencySymbol = '₹';
 
   return (
     <>
@@ -694,7 +755,7 @@ const CartPage = () => {
           width: '100%',
           boxSizing: 'border-box'
         }}>
-          {/* Header Section - Responsive */}
+          {/* Header Section */}
           <div style={{ 
             display: 'flex', 
             flexDirection: 'row',
@@ -786,7 +847,7 @@ const CartPage = () => {
                 color: '#f1f5f9',
                 whiteSpace: 'nowrap'
               }}>
-                Cart ({getTotalItems()})
+                Cart ({getTotalItems()}) - {cartCurrency}
               </h1>
               <button
                 onClick={handleClearCart}
@@ -858,14 +919,14 @@ const CartPage = () => {
             </div>
           )}
 
-          {/* Main Content - Responsive Flex Layout */}
+          {/* Main Content */}
           <div style={{ 
             display: 'flex', 
             flexDirection: 'row',
             flexWrap: 'wrap',
             gap: '2rem'
           }}>
-            {/* Cart Items List - Takes remaining space */}
+            {/* Cart Items List */}
             <div style={{ 
               flex: '1 1 500px',
               minWidth: '280px'
@@ -878,7 +939,7 @@ const CartPage = () => {
               }}>
                 {items.map((item, index) => {
                   const totalPrice = getItemTotalPrice(item);
-                  const unitPrice = getUnitPriceDisplay(item);
+                  const unitPrice = getUnitPrice(item);
                   const packageSize = item.selectedQuantity || 1;
                   const packageUnit = item.quantityUnit || 'kg';
                   const currencySymbol = getCurrencySymbol(item);
@@ -928,6 +989,16 @@ const CartPage = () => {
                               fontWeight: '500'
                             }}>
                               Grade: {item.selectedGradeDisplay}
+                            </div>
+                          )}
+                          {item.selectedGrade && !item.selectedGradeDisplay && (
+                            <div style={{ 
+                              color: '#10b981', 
+                              fontSize: '0.9rem', 
+                              marginTop: '2px',
+                              fontWeight: '500'
+                            }}>
+                              Grade: {item.selectedGrade}
                             </div>
                           )}
                         </div>
@@ -1104,7 +1175,7 @@ const CartPage = () => {
               </div>
             </div>
 
-            {/* Order Summary - Fixed width on desktop, full width on mobile */}
+            {/* Order Summary */}
             <div style={{ 
               flex: '0 0 300px',
               width: '100%',
@@ -1117,15 +1188,15 @@ const CartPage = () => {
               top: '100px',
               alignSelf: 'flex-start'
             }}>
-              <h2 style={{ margin: '0 0 1.5rem', color: '#f1f5f9', fontSize: '1.3rem' }}>Order Summary</h2>
+              <h2 style={{ margin: '0 0 1.5rem', color: '#f1f5f9', fontSize: '1.3rem' }}>Order Summary ({cartCurrency})</h2>
               
               <div style={{ marginBottom: '1.5rem', maxHeight: '300px', overflowY: 'auto' }}>
                 {items.map(item => {
-                  const totalPrice = getItemTotalPrice(item);
-                  const unitPrice = getUnitPriceDisplay(item);
+                  const unitPrice = getUnitPrice(item);
                   const packageSize = item.selectedQuantity || 1;
                   const packageUnit = item.quantityUnit || 'kg';
                   const currencySymbol = getCurrencySymbol(item);
+                  const gradePrice = item.selectedGradePrice ? parseFloat(item.selectedGradePrice) : null;
                   
                   return (
                     <div key={item.cartItemId || item.id} style={{
@@ -1145,13 +1216,23 @@ const CartPage = () => {
                               ({item.selectedGradeDisplay})
                             </span>
                           )}
+                          {item.selectedGrade && !item.selectedGradeDisplay && (
+                            <span style={{ color: '#10b981', marginLeft: '4px', fontSize: '0.8rem' }}>
+                              ({item.selectedGrade})
+                            </span>
+                          )}
                         </div>
                         <div style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
                           {item.quantity} × {packageSize}{packageUnit}
+                          {gradePrice && (
+                            <span style={{ color: '#10b981', marginLeft: '4px' }}>
+                              @ {currencySymbol}{gradePrice}/kg
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div style={{ color: '#10b981', fontWeight: '500', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>
-                        {totalPrice.display || `${currencySymbol}${totalPrice.value}`}
+                        {currencySymbol}{gradePrice ? (gradePrice * packageSize * item.quantity).toFixed(2) : (parseFloat(item.price?.value || 0) * item.quantity).toFixed(2)}
                       </div>
                     </div>
                   );
@@ -1161,7 +1242,7 @@ const CartPage = () => {
               <div style={{ borderTop: '2px solid rgba(64, 150, 226, 0.3)', paddingTop: '1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.95rem' }}>
                   <span style={{ color: '#cbd5e0' }}>Subtotal</span>
-                  <span style={{ color: 'white', fontWeight: '500' }}>₹{totalPrice}</span>
+                  <span style={{ color: 'white', fontWeight: '500' }}>{cartCurrencySymbol}{subtotal}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.95rem' }}>
                   <span style={{ color: '#cbd5e0' }}>Shipping</span>
@@ -1169,7 +1250,7 @@ const CartPage = () => {
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.95rem' }}>
                   <span style={{ color: '#cbd5e0' }}>Tax (10%)</span>
-                  <span style={{ color: 'white', fontWeight: '500' }}>₹{taxAmount}</span>
+                  <span style={{ color: 'white', fontWeight: '500' }}>{cartCurrencySymbol}{tax}</span>
                 </div>
                 <div style={{ 
                   display: 'flex', 
@@ -1181,7 +1262,7 @@ const CartPage = () => {
                 }}>
                   <span style={{ color: '#f1f5f9', fontWeight: 'bold' }}>Total</span>
                   <span style={{ color: '#10b981', fontWeight: 'bold', fontSize: '1.2rem' }}>
-                    ₹{finalTotal}
+                    {cartCurrencySymbol}{finalTotal}
                   </span>
                 </div>
               </div>
@@ -1358,7 +1439,6 @@ const CartPage = () => {
             to { transform: rotate(360deg); }
           }
 
-          /* Responsive breakpoints */
           @media (max-width: 992px) {
             .cart-page .container {
               padding: 1.5rem 1rem;
@@ -1381,11 +1461,6 @@ const CartPage = () => {
             .sync-text {
               display: inline;
             }
-            
-            /* Adjust cart items for mobile */
-            [class*="cart-item"] {
-              flex-direction: column;
-            }
           }
 
           @media (max-width: 480px) {
@@ -1404,20 +1479,13 @@ const CartPage = () => {
             .cart-page .container {
               padding: 1rem 0.75rem;
             }
-            
-            /* Further adjust cart items for small phones */
-            [class*="cart-item"] {
-              padding: 0.75rem;
-            }
           }
 
-          /* Ensure images don't overflow */
           img {
             max-width: 100%;
             height: auto;
           }
 
-          /* Fix for sticky on mobile */
           @media (max-width: 768px) {
             div[style*="position: sticky"] {
               position: static;
@@ -1432,6 +1500,9 @@ const CartPage = () => {
         products={checkoutProducts}
         profile={completeProfile}
         onOrderSubmitted={handleOrderSubmitted}
+        currencyRates={currencyRates}
+        currencySymbols={currencySymbols}
+        selectedCurrency="INR"
       />
     </>
   );
